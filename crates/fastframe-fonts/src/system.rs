@@ -441,8 +441,11 @@ mod scan {
         }
         // A family that calls itself sans is meant for interface sizes; the
         // rest of a Noto set are specialised cuts (Nastaliq, Rashi, Kufi).
-        // Symbol faces rarely say "sans".
-        if !family.contains("sans") && hint != "emoji" && hint != "symbol" {
+        // The system's own interface faces end in "UI" instead (Segoe UI,
+        // Nirmala UI, Leelawadee UI): they are what Windows itself draws
+        // these scripts with. Symbol faces rarely say "sans".
+        let interface = family.contains("sans") || family.ends_with(" ui");
+        if !interface && hint != "emoji" && hint != "symbol" {
             score += 50;
         }
         for (fragment, penalty) in [
@@ -452,6 +455,13 @@ mod scan {
             ("naskh", 80),
             ("looped", 80),
             ("display", 80),
+            // Windows' Arabic print and calligraphy faces, whose letters sit
+            // far smaller than their neighbours at interface sizes.
+            ("typesetting", 80),
+            ("traditional", 80),
+            ("simplified", 80),
+            ("fixed", 80),
+            ("uighur", 80),
             ("condensed", 60),
             ("caption", 40),
         ] {
@@ -630,6 +640,40 @@ mod scan {
                 "only the missing hint counts against it, not a missing \"sans\""
             );
         }
+    }
+
+    /// On Windows, whose Arabic faces are print and calligraphy cuts with
+    /// small letters, the interface face wins (ZapFast #72), and Hebrew,
+    /// Indic and Thai land on Windows' own interface faces too.
+    #[test]
+    fn windows_interface_faces_win_over_its_print_faces() {
+        let score = |family: &str, hint: &str| face_score(family, 400.0, "sc", hint);
+        for print in [
+            "arabic typesetting",
+            "traditional arabic",
+            "simplified arabic",
+            "simplified arabic fixed",
+            "microsoft uighur",
+        ] {
+            assert!(
+                score("segoe ui", "arabic") < score(print, "arabic"),
+                "{print}"
+            );
+        }
+        for (interface, others, hint) in [
+            ("segoe ui", &["arial", "david", "miriam"][..], "hebrew"),
+            ("nirmala ui", &["mangal", "aparajita"][..], "devanagari"),
+            ("leelawadee ui", &["tahoma", "angsana new"][..], "thai"),
+        ] {
+            for other in others {
+                assert!(
+                    score(interface, hint) < score(other, hint),
+                    "{interface} over {other}"
+                );
+            }
+        }
+        // A face drawn for the script and calling itself sans still wins.
+        assert!(score("noto sans arabic", "arabic") < score("segoe ui", "arabic"));
     }
 }
 

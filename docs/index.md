@@ -6,7 +6,11 @@ permalink: /
 hero:
   name: fastframe
   text: egui on rails
-  tagline: The small crates behind ZapFast, Spotifast, Solco, TonePush and Chat with Work. Everything a native egui app needs besides its own interface, extracted from apps that already ship it.
+  tagline: >-
+    The small crates behind <a href="https://zapfast.rocks">ZapFast</a>,
+    <a href="https://spotifast.rocks">Spotifast</a>, <a href="https://getsolco.com">Solco</a>,
+    <a href="https://docs.tonepush.rocks">TonePush</a> and <a href="https://chatwithwork.com">Chat with Work</a>.
+    Everything a native egui app needs besides its own interface, extracted from apps that already ship it.
   actions:
     - theme: brand
       text: Get started
@@ -55,6 +59,22 @@ features:
     link: /fastframe-log/
     link_text: fastframe-log
 ---
+
+<style>
+  /* The app names in the hero tagline are links; the theme draws tagline
+     text without link styling. */
+  .VPHero .tagline a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--vp-c-brand-1);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    transition: color 0.25s;
+  }
+  .VPHero .tagline a:hover {
+    color: var(--vp-c-brand-1);
+  }
+</style>
 
 <div class="vp-doc" style="max-width: 1152px; margin: 4rem auto 0; padding: 0 24px;">
   <h2 style="border-top: none; margin-top: 0; padding-top: 0;">The crates</h2>

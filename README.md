@@ -3,8 +3,10 @@
 **egui on rails.** Documentation: [fastframe.dev](https://fastframe.dev).
 
 fastframe is the shared foundation of a family of native desktop apps built
-with Rust and [egui](https://github.com/emilk/egui): ZapFast, Spotifast,
-Solco, TonePush, and the Chat with Work local agent. Each piece here was
+with Rust and [egui](https://github.com/emilk/egui):
+[ZapFast](https://zapfast.rocks), [Spotifast](https://spotifast.rocks),
+[Solco](https://getsolco.com), [TonePush](https://docs.tonepush.rocks), and
+the [Chat with Work](https://chatwithwork.com) local agent. Each piece here was
 written for one of those apps first and moved here once another app needed it.
 
 ## Principles

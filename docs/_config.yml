@@ -68,6 +68,25 @@ jekyll_vitepress:
     logo:
       default: /assets/images/logo.svg
       alt: fastframe
+  # Accent colours from the logo's orange tile. Light mode uses darker shades
+  # so links and white button text keep their contrast on white.
+  tokens:
+    light:
+      "--vp-c-brand-1": "#c2410c"
+      "--vp-c-brand-2": "#d9412b"
+      "--vp-c-brand-3": "#b8361f"
+      "--vp-c-brand-soft": "rgba(217, 65, 43, 0.14)"
+      "--vp-home-hero-name-color": "transparent"
+      "--vp-home-hero-name-background": "-webkit-linear-gradient(120deg, #d9412b 30%, #f59e0b)"
+      "--vp-home-hero-image-background-image": "linear-gradient(-45deg, #f4683a 50%, #ffb347 50%)"
+    dark:
+      "--vp-c-brand-1": "#ff8a5c"
+      "--vp-c-brand-2": "#ffa27f"
+      "--vp-c-brand-3": "#c93a24"
+      "--vp-c-brand-soft": "rgba(255, 138, 92, 0.16)"
+      "--vp-home-hero-name-color": "transparent"
+      "--vp-home-hero-name-background": "-webkit-linear-gradient(120deg, #f4683a 30%, #ffb347)"
+      "--vp-home-hero-image-background-image": "linear-gradient(-45deg, #f4683a 50%, #ffb347 50%)"
   syntax:
     light_theme: github
     dark_theme: github.dark

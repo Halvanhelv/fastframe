@@ -1,6 +1,6 @@
 # fastframe
 
-**egui on rails.**
+**egui on rails.** Documentation: [fastframe.dev](https://fastframe.dev).
 
 fastframe is the shared foundation of a family of native desktop apps built
 with Rust and [egui](https://github.com/emilk/egui): ZapFast, Spotifast,

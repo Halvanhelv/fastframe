@@ -1,0 +1,12 @@
+- title: Guide
+  url: /what-is-fastframe/
+  collections:
+    - guide
+- title: Crates
+  url: /fastframe-text/
+  collections:
+    - crates
+- title: Reference
+  url: /moving-apps/
+  collections:
+    - reference

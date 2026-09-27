@@ -1,0 +1,115 @@
+title: fastframe
+description: egui on rails. The shared foundation of a family of native Rust desktop apps.
+lang: en-US
+timezone: Europe/Berlin
+url: https://fastframe.dev
+baseurl: ""
+logo: /assets/images/logo.svg
+image: /assets/images/logo.svg
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+permalink: pretty
+theme: jekyll-vitepress-theme
+
+# Crate pages and the migration guide are built from the repository's own
+# README.md and MIGRATION.md by _plugins/fastframe_sources.rb, so they have
+# one source. The workspace README's crate table sets their order.
+collections:
+  guide:
+    output: true
+    permalink: "/:name/"
+  crates:
+    output: true
+    permalink: "/:name/"
+  reference:
+    output: true
+    permalink: "/:name/"
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      topics:
+        - Rust
+        - egui
+        - eframe
+        - desktop apps
+        - cross-platform
+
+jekyll_vitepress:
+  seo:
+    page_type: TechArticle
+    image:
+      path: /assets/images/logo.svg
+      alt: fastframe
+    publisher:
+      type: Person
+      name: Carmine Paolino
+      url: https://paolino.me
+      same_as:
+        - https://github.com/crmne/fastframe
+  llms:
+    title: fastframe
+    description: >-
+      Documentation for fastframe, a Cargo workspace of small fastframe
+      crates shared by native egui desktop apps: font rendering, fonts,
+      icons, themes, translations, logging, tray, background running, macOS
+      window chrome and self-update.
+    full: true
+    details: >-
+      Each crate page is its README. Source is on
+      [GitHub](https://github.com/crmne/fastframe).
+  branding:
+    site_title: fastframe
+    logo:
+      default: /assets/images/logo.svg
+      alt: fastframe
+  syntax:
+    light_theme: github
+    dark_theme: github.dark
+  footer:
+    enabled: true
+    show_on_docs: false
+    message: >-
+      Brought to you by <a href="https://paolino.me" target="_blank" rel="noreferrer">Carmine Paolino</a>, maker of
+    copyright: >-
+      <span class="footer-brand-links"><a href="https://chatwithwork.com" class="footer-chatwithwork-link" target="_blank" rel="noreferrer"><img class="footer-chatwithwork-logo theme-image light" src="https://chatwithwork.com/logotype.svg" alt="Chat with Work"><img class="footer-chatwithwork-logo theme-image dark" src="https://chatwithwork.com/logotype-dark.svg" alt="Chat with Work"></a><a href="https://rubyllm.com" class="footer-rubyllm-link" target="_blank" rel="noreferrer"><img class="footer-rubyllm-logo theme-image light" src="https://rubyllm.com/assets/images/logotype.svg" alt="RubyLLM"><img class="footer-rubyllm-logo theme-image dark" src="https://rubyllm.com/assets/images/logotype_dark.svg" alt="RubyLLM"></a><a href="https://paolino.me/projects" target="_blank" rel="noreferrer" aria-label="More projects by Carmine Paolino">and more</a></span><br><span class="footer-built-with">Docs built with <a href="https://jekyll-vitepress.dev" target="_blank" rel="noreferrer">Jekyll VitePress</a>.</span>
+  doc_footer:
+    enabled: true
+    previous_label: Previous page
+    next_label: Next page
+  last_updated:
+    enabled: true
+    text: Last updated
+    format: "%Y-%m-%d %H:%M"
+  # Pages under docs/ have paths like _guide/x.md; the generated crate pages
+  # have ../crates/x/README.md, which the browser resolves to crates/x.
+  edit_link:
+    enabled: true
+    pattern: "https://github.com/crmne/fastframe/edit/main/docs/:path"
+    text: Edit this page on GitHub
+  github_star:
+    enabled: true
+    repository: crmne/fastframe
+    text: Star
+    show_count: true
+  github_sponsor:
+    enabled: true
+    user: crmne
+    text: Sponsor
+
+plugins:
+  - jekyll-vitepress-theme
+
+exclude:
+  - _site
+  - .jekyll-cache
+  - .sass-cache
+  - .bundle
+  - vendor
+  - Gemfile
+  - Gemfile.lock

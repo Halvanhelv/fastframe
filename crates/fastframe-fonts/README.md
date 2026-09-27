@@ -6,7 +6,7 @@ egui.
 - **Inter**, bundled: Inter 4.001 as a variable font with its tabular
   figures frozen into the character map, so a timer or a counter keeps its
   width as it changes (see [`fonts/README.md`](fonts/README.md) for how it
-  was made). The same file ZapFast, Spotifast and RekordFlash ship.
+  was made). The same file ZapFast, Spotifast and Solco ship.
 - **Weights**: 400 is egui's proportional family; 500, 600 and 700 are
   named families (`inter-medium`, `inter-semibold`, `inter-bold`), each
   falling back like the regular one.

@@ -28,7 +28,7 @@
 //!
 //! [`Logging`] installs a [`log`] logger, behind the default `logger`
 //! feature. [`log_panics`] and [`redact`] use only the standard library and
-//! work with any facade, so an app that logs through `tracing` (RekordFlash)
+//! work with any facade, so an app that logs through `tracing` (Solco)
 //! takes them without the logger:
 //!
 //! ```toml

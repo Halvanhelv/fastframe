@@ -32,7 +32,7 @@ section below has a subsection per app with the details.
 | --- | --- | --- |
 | ZapFast | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos), [update](#fastframe-update) | |
 | Spotifast | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos) (the double-click setting only), [update](#fastframe-update) | |
-| RekordFlash | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [macos](#fastframe-macos) (done in b5985bb); [update](#fastframe-update) (with the pre-release channel); [log](#fastframe-log) (only the facade-free redaction and panic line, with `default-features = false`) later | [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations; [shell](#fastframe-shell) (no tray or background mode); its `tracing` logger stays |
+| Solco | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [macos](#fastframe-macos) (done in b5985bb); [update](#fastframe-update) (with the pre-release channel); [log](#fastframe-log) (only the facade-free redaction and panic line, with `default-features = false`) later | [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations; [shell](#fastframe-shell) (no tray or background mode); its `tracing` logger stays |
 | TonePush | [text](#fastframe-text), [fonts](#fastframe-fonts), [update](#fastframe-update) (with `portable_executable`) | [icons](#fastframe-icons) later (its own macros and layout); [log](#fastframe-log) (it uses `eprintln!`); [shell](#fastframe-shell); [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations |
 | Chat with Work Local Agent | [text](#fastframe-text) | [fonts](#fastframe-fonts) (it draws with the platform's UI font); [tray](#fastframe-tray) and [shell](#fastframe-shell) (one winit loop with `pump_app_events`, tray-icon 0.25); [log](#fastframe-log) until it wants a log file; [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations |
 
@@ -59,7 +59,7 @@ ctx.all_styles_mut(|style| rendering.apply_to_visuals(&mut style.visuals));
 - The `watch` feature follows portal changes live; call `apply_to` and
   `ctx.set_fonts` again from its callback.
 
-Adopted by all five apps: ZapFast, Spotifast, RekordFlash, TonePush and Chat
+Adopted by all five apps: ZapFast, Spotifast, Solco, TonePush and Chat
 with Work (58da999, which applies it to the system UI font it uses).
 
 ## fastframe-fonts
@@ -130,7 +130,7 @@ Behaviour that changes, from ZapFast's copy: a small Arabic face is enlarged
 up to 25% to match Inter's x-height, and Javanese, mathematical
 alphanumerics, enclosed alphanumerics and ♡ get fallbacks too.
 
-### RekordFlash
+### Solco
 
 | Delete | Lines | Instead |
 | --- | --- | --- |
@@ -138,10 +138,10 @@ alphanumerics, enclosed alphanumerics and ♡ get fallbacks too.
 | `src/theme.rs` `SEMIBOLD` | 1 | `Weight::SemiBold.family()` in `semibold(size)` |
 | `assets/fonts/InterVariable.ttf`, `assets/fonts/README.md` | 2 files | the crate |
 
-About 40 lines. RekordFlash has no system fallbacks today: the default adds
+About 40 lines. Solco has no system fallbacks today: the default adds
 them, so track names in CJK, Arabic or Indic scripts stop drawing as boxes.
 Pass `.system_fallbacks(false)` to keep today's behaviour. The font data keys
-change from `rekordflash-inter` to `inter`.
+change from `solco-inter` to `inter`.
 
 ### TonePush
 
@@ -219,11 +219,11 @@ About 120 lines and 43 files. Behaviour change: icons are served by the
 never-forget loader instead of `ctx.include_bytes`, which fixes the red
 placeholder if Spotifast ever turns on `reduce_texture_memory`.
 
-### RekordFlash
+### Solco
 
 | Delete | Lines | Instead |
 | --- | --- | --- |
-| `src/theme.rs` `macro_rules! icons` | 9 | the crate's `icons!` with `prefix: "rekordflash-"` |
+| `src/theme.rs` `macro_rules! icons` | 9 | the crate's `icons!` with `prefix: "solco-"` |
 | `src/theme.rs` `enum Icon` | 57 | generated (declare it `pub(crate) enum Icon` or keep it private, as now) |
 | `src/theme.rs` `impl Icon { uri }`, `register_icons` | 13 | generated, `fastframe_icons::install::<Icon>(context)` |
 
@@ -324,9 +324,9 @@ rather than from `themes/omarchy.json` alone; the themes folder and the
 current Omarchy theme are watched, so palettes reload without the hook or a
 restart.
 
-### RekordFlash, TonePush, Chat with Work
+### Solco, TonePush, Chat with Work
 
-RekordFlash and TonePush draw one fixed dark palette, and Chat with Work
+Solco and TonePush draw one fixed dark palette, and Chat with Work
 follows the platform's light or dark setting; none reads palette files.
 They can adopt the crate by implementing `Palette` when they add custom
 themes or Omarchy support.
@@ -372,7 +372,7 @@ tests) stay in the app.
 
 About 200 lines. `Locale::from_tag` keeps using `clap::ValueEnum`.
 
-### RekordFlash, TonePush, Chat with Work
+### Solco, TonePush, Chat with Work
 
 No translations yet. Start with the crate when they add one.
 
@@ -435,9 +435,9 @@ Differences, all deliberate:
 - The start line says `spotifast` (the name passed to `Logging::new`, which
   the panic line also uses) where it said `Spotifast`.
 
-### RekordFlash, TonePush, Chat with Work
+### Solco, TonePush, Chat with Work
 
-Not moving the logger now. RekordFlash logs through `tracing-subscriber`
+Not moving the logger now. Solco logs through `tracing-subscriber`
 (an `EnvFilter` in `main.rs`, stderr only) and records panics as structured
 session evidence (`src/diagnostics/sessions.rs`), which chains the previous
 hook and already never captures the payload. It can take the facade-free
@@ -597,9 +597,9 @@ behaviour on X11 and Windows, so it is optional.
 
 No other behaviour changes.
 
-### RekordFlash, TonePush, Chat with Work
+### Solco, TonePush, Chat with Work
 
-Not moving: RekordFlash and TonePush have no tray or background mode. Chat
+Not moving: Solco and TonePush have no tray or background mode. Chat
 with Work keeps its window alive with `pump_app_events` on one winit loop, a
 different design.
 
@@ -620,7 +620,7 @@ and its application menus.
 
 About 55 lines. The menu code in `macos.rs` stays. No behaviour change.
 
-### RekordFlash
+### Solco
 
 | Delete | Lines | Instead |
 | --- | --- | --- |
@@ -631,7 +631,7 @@ About 55 lines. The menu code in `macos.rs` stays. No behaviour change.
 | `Cargo.toml`: the macOS `objc2-app-kit` 0.2 and `raw-window-handle` entries used only by `macos_chrome.rs` | 2 | come with the crate (objc2-app-kit 0.3, as ZapFast and Spotifast use) |
 
 About 115 lines. Differences: a double-click setting the crate does not know
-(a future macOS value) now does nothing, where RekordFlash zoomed.
+(a future macOS value) now does nothing, where Solco zoomed.
 
 ### Spotifast
 
@@ -890,9 +890,9 @@ the macOS bundle the editor's executable is `tonepush`, so the bundle needs
 no executable names. ZapFast and Spotifast leave `portable_executable` at
 `None` and nothing changes for them.
 
-### RekordFlash
+### Solco
 
-RekordFlash has no updater yet, and every release so far is a GitHub
+Solco has no updater yet, and every release so far is a GitHub
 pre-release (`v0.5.0-alpha.2`), so `releases/latest` answers 404. It turns on
 the pre-release channel:
 
@@ -901,13 +901,13 @@ pub const CONFIG: UpdateConfig = UpdateConfig {
     prereleases: Prereleases::WhenRunningPrerelease,
     mac_target: MacTarget::Arm64Only,
     publisher_key: Some(include_str!("../assets/update-public-key.hex")),
-    ..UpdateConfig::new("crmne/rekordflash", "RekordFlash", "rekordflash", env!("CARGO_PKG_VERSION"))
+    ..UpdateConfig::new("crmne/solco-releases", "Solco", "solco", env!("CARGO_PKG_VERSION"))
 };
 ```
 
 An alpha is offered the highest newer release, alpha or stable; a stable
 build never sees an alpha. Its macOS build is Apple silicon only, so
-`MacTarget::Arm64Only` looks for `rekordflash-v<version>-macos-arm64.dmg`,
+`MacTarget::Arm64Only` looks for `solco-v<version>-macos-arm64.dmg`,
 the name its release workflow already uses, and refuses an x86_64 copy with
 `Unsupported::Platform`. Before it ships:
 
@@ -915,11 +915,11 @@ the name its release workflow already uses, and refuses an x86_64 copy with
   handoff and `Receipt::acknowledge`. Put the expiry gate after `intercept`
   and keep the update banner usable when the alpha has expired, or an
   expired copy can only be replaced by hand.
-- `--version` prints `rekordflash 0.5.0-alpha.2`, the full version. The
+- `--version` prints `solco 0.5.0-alpha.2`, the full version. The
   macOS bundle's `CFBundleShortVersionString` may stay the numeric
   `0.5.0` that `packaging/macos/bundle.sh` writes.
-- The Linux and Windows archives need `rekordflash-portable.txt`
-  (`rekordflash-portable-v1`), or those copies report `NotPortable`.
+- The Linux and Windows archives need `solco-portable.txt`
+  (`solco-portable-v1`), or those copies report `NotPortable`.
 - A portable update replaces only the executable. The `models` folder,
   bundled libraries and `alpha-release.json` in the archive are not
   updated; a release that changes them needs the app to cope with the old
@@ -927,8 +927,8 @@ the name its release workflow already uses, and refuses an x86_64 copy with
 - Once a stable release exists, publish it as a normal (latest) release:
   a stable build reads only `releases/latest`.
 - The stable Windows installer is published as
-  `rekordflash-v<version>-windows-x86_64-setup.exe`; the updater expects
-  `rekordflash-v<version>-x86_64-pc-windows-msvc-setup.exe`. Rename it in
+  `solco-v<version>-windows-x86_64-setup.exe`; the updater expects
+  `solco-v<version>-x86_64-pc-windows-msvc-setup.exe`. Rename it in
   the release workflow before installer copies are meant to update.
 
 ### Deleted lines, both apps
@@ -946,20 +946,20 @@ have settled:
 
 | Widget | Apps (where) |
 | --- | --- |
-| Switch (toggle) | ZapFast (`ui/widgets.rs` `switch`), Spotifast (`ui/widgets.rs`), RekordFlash (`theme.rs`), Chat with Work (`ui/widgets.rs`) |
-| Settings row (label, detail, control) | ZapFast (`setting_row`), Spotifast (`setting_row`, `setting_row_sized`), RekordFlash (`setting_row`, `settings_section`, `setting_divider`), Chat with Work (`setting_row`, `section`, `group`) |
-| Icon button and icon painting | ZapFast (`theme.rs` `icon`, `paint_icon`, `icon_button`), Spotifast (same names), RekordFlash (`icon`, `icon_image`, `icon_button`, `toolbar_icon_button`), TonePush (`icon_button`, `tinted_icon_button`), Chat with Work (`paint_icon`) |
-| Primary, secondary and danger buttons | RekordFlash (`primary_button`, `secondary_button`, `danger_button`), Chat with Work (`primary_button`, `destructive_button`); ZapFast and Spotifast use `pill_button`, `soft_button`, `circle_button` for the same roles |
-| Dialog title and footer | RekordFlash (`dialog_title`, `dialog_note`, `dialog_footer`), Chat with Work (`dialog_buttons`), ZapFast (`dialog_scroll_height`) |
-| Segmented control, chips | RekordFlash (`segmented`, `deck_segment`), ZapFast (`chip`, `filter_chip`), Spotifast (`chips`), TonePush (`category_chip`) |
+| Switch (toggle) | ZapFast (`ui/widgets.rs` `switch`), Spotifast (`ui/widgets.rs`), Solco (`theme.rs`), Chat with Work (`ui/widgets.rs`) |
+| Settings row (label, detail, control) | ZapFast (`setting_row`), Spotifast (`setting_row`, `setting_row_sized`), Solco (`setting_row`, `settings_section`, `setting_divider`), Chat with Work (`setting_row`, `section`, `group`) |
+| Icon button and icon painting | ZapFast (`theme.rs` `icon`, `paint_icon`, `icon_button`), Spotifast (same names), Solco (`icon`, `icon_image`, `icon_button`, `toolbar_icon_button`), TonePush (`icon_button`, `tinted_icon_button`), Chat with Work (`paint_icon`) |
+| Primary, secondary and danger buttons | Solco (`primary_button`, `secondary_button`, `danger_button`), Chat with Work (`primary_button`, `destructive_button`); ZapFast and Spotifast use `pill_button`, `soft_button`, `circle_button` for the same roles |
+| Dialog title and footer | Solco (`dialog_title`, `dialog_note`, `dialog_footer`), Chat with Work (`dialog_buttons`), ZapFast (`dialog_scroll_height`) |
+| Segmented control, chips | Solco (`segmented`, `deck_segment`), ZapFast (`chip`, `filter_chip`), Spotifast (`chips`), TonePush (`category_chip`) |
 | Menu item, separator, frame | ZapFast (`menu_item`, `menu_item_enabled`, `menu_separator`, `menu_frame`, `submenu`), Spotifast (the same, plus `menu_submenu`) |
 | Search field | ZapFast, Spotifast (`search_field`) |
 | Empty state, loading and error rows | ZapFast (`empty_state`), Spotifast (`empty_state`, `loading_row`, `error_row`) |
-| Spinner | ZapFast (`spinner`, `paint_spinner`), Spotifast (`spinner`, `circle_spinner`), RekordFlash (`spinner`, paced for an event-driven loop), TonePush (`spinner`) |
-| Status dot, badge | RekordFlash (`status_dot`), Chat with Work (`status_dot`, `badge`), TonePush (`status_dot`), ZapFast (`badge`, `unread_dot`) |
+| Spinner | ZapFast (`spinner`, `paint_spinner`), Spotifast (`spinner`, `circle_spinner`), Solco (`spinner`, paced for an event-driven loop), TonePush (`spinner`) |
+| Status dot, badge | Solco (`status_dot`), Chat with Work (`status_dot`, `badge`), TonePush (`status_dot`), ZapFast (`badge`, `unread_dot`) |
 | Focus ring | ZapFast (`focus_outline`, `reveal_focus`), Spotifast (`focus_ring`) |
 | Credits line, logo | ZapFast, Spotifast (`credit`, `logo`) |
-| Navigation row | RekordFlash (`navigation_row`, `navigation_highlight`), Spotifast (sidebar rows), ZapFast (chat rows) |
+| Navigation row | Solco (`navigation_row`, `navigation_highlight`), Spotifast (sidebar rows), ZapFast (chat rows) |
 | Drag ghost | Spotifast, TonePush (`drag_ghost`) |
 | Vertical gradient | ZapFast, Spotifast (`paint_vertical_gradient`) |
 

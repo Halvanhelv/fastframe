@@ -101,7 +101,7 @@ pub enum Monospace {
     /// as ZapFast and Spotifast use.
     EguiDefault,
     /// Inter at regular weight. Its figures are tabular, so readings keep
-    /// their width without a second face (RekordFlash).
+    /// their width without a second face (Solco).
     Inter,
     /// A face of the app's own, registered under `name`, ahead of egui's.
     Font {

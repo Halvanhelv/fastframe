@@ -49,7 +49,7 @@ does not know does nothing.
 
 ZapFast builds its macOS menu bar with muda and keeps it alive across window
 recreation; Spotifast builds its own with AppKit directly (plus a Touch Bar
-guard); RekordFlash has none. They share too little to extract a menu model
+guard); Solco has none. They share too little to extract a menu model
 yet.
 
 ## Unsafe code

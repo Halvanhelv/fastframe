@@ -1,6 +1,6 @@
 //! macOS window chrome for egui apps drawn under the title bar.
 //!
-//! ZapFast and RekordFlash hide the macOS title bar and draw their own header
+//! ZapFast and Solco hide the macOS title bar and draw their own header
 //! to the top edge of the window (`with_fullsize_content_view(true)`,
 //! `with_titlebar_shown(false)`). Two things then need doing by hand:
 //!
@@ -169,7 +169,7 @@ mod tests {
         assert_eq!(traffic_light_inset(&ctx), expected);
     }
 
-    /// ZapFast's 60-point chat header and RekordFlash's 48-point bar, with
+    /// ZapFast's 60-point chat header and Solco's 48-point bar, with
     /// AppKit's 14-point buttons.
     #[test]
     fn buttons_sit_on_the_bars_centre_line_in_their_usual_columns() {

@@ -61,13 +61,13 @@ fastframe-log = { git = "https://github.com/crmne/fastframe", rev = "<commit>", 
 ```
 
 ```rust
-fastframe_log::log_panics(state_dir.join("panic.log"), "rekordflash", env!("CARGO_PKG_VERSION"));
+fastframe_log::log_panics(state_dir.join("panic.log"), "solco", env!("CARGO_PKG_VERSION"));
 tracing::warn!(error = %fastframe_log::redact::links(&error.to_string()), "download failed");
 ```
 
 `log_panics` replaces the panic hook without chaining the previous one (the
 default hook would print the payload). Install it first: a hook set later
-that chains `std::panic::take_hook()`, such as RekordFlash's session
+that chains `std::panic::take_hook()`, such as Solco's session
 recorder, then runs before it and keeps working.
 
 There is no `tracing` subscriber in this crate: only one app logs through

@@ -52,7 +52,7 @@ fn title(ui: &mut egui::Ui, text: &str) {
 
 From there, each [crate page](/fastframe-text/) shows how to wire it in. The
 [migration guide](/moving-apps/) lists, app by app, what each crate replaces
-in ZapFast, Spotifast, RekordFlash, TonePush and Chat with Work, which makes
+in ZapFast, Spotifast, Solco, TonePush and Chat with Work, which makes
 it a good set of worked examples.
 
 ## egui and winit forks

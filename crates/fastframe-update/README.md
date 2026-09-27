@@ -105,7 +105,7 @@ would report fastframe's version, so the app passes its own.
 
 ## Pre-releases
 
-An app whose releases are all pre-releases (RekordFlash's alphas, for which
+An app whose releases are all pre-releases (Solco's alphas, for which
 `releases/latest` answers 404) opts in:
 
 ```rust
@@ -113,7 +113,7 @@ use fastframe_update::{Prereleases, UpdateConfig};
 
 pub const UPDATES: UpdateConfig = UpdateConfig {
     prereleases: Prereleases::WhenRunningPrerelease,
-    ..UpdateConfig::new("crmne/rekordflash", "RekordFlash", "rekordflash", env!("CARGO_PKG_VERSION"))
+    ..UpdateConfig::new("crmne/solco-releases", "Solco", "solco", env!("CARGO_PKG_VERSION"))
 };
 ```
 

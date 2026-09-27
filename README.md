@@ -4,7 +4,7 @@
 
 fastframe is the shared foundation of a family of native desktop apps built
 with Rust and [egui](https://github.com/emilk/egui): ZapFast, Spotifast,
-RekordFlash, TonePush, and the Chat with Work local agent. Each piece here was
+Solco, TonePush, and the Chat with Work local agent. Each piece here was
 written for one of those apps first and moved here once another app needed it.
 
 ## Principles

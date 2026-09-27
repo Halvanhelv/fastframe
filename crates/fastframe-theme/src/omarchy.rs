@@ -736,6 +736,6 @@ mod tests {
             hook_script("spotifast"),
             include_str!("../tests/fixtures/omarchy/spotifast-theme")
         );
-        assert!(hook_script("rekord-flash").contains("${REKORD_FLASH_THEMES_DIR:-"));
+        assert!(hook_script("chat-with-work").contains("${CHAT_WITH_WORK_THEMES_DIR:-"));
     }
 }

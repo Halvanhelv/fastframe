@@ -9,7 +9,7 @@ with Rust and [egui](https://github.com/emilk/egui):
 
 - [ZapFast](https://zapfast.rocks), a WhatsApp client
 - [Spotifast](https://spotifast.rocks), a Spotify client
-- RekordFlash
+- Solco
 - [TonePush](https://docs.tonepush.rocks), an editor for Line 6 HX pedals and
   the StompStation PRO
 - the [Chat with Work](https://chatwithwork.com) local agent

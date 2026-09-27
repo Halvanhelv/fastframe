@@ -50,7 +50,7 @@ misspelt name fails the build and only the icons an app names reach its
 binary. `fastframe_icons::lucide::ALL` lists them.
 
 An icon moves here only when two apps ship the same file. Icons one app
-customised, or that differ between apps (RekordFlash's minified
+customised, or that differ between apps (Solco's minified
 `lucide-static` files, TonePush's own set), stay in the app.
 
 ## Licence

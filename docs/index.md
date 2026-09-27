@@ -6,7 +6,7 @@ permalink: /
 hero:
   name: fastframe
   text: egui on rails
-  tagline: The small crates behind ZapFast, Spotifast, RekordFlash, TonePush and Chat with Work. Everything a native egui app needs besides its own interface, extracted from apps that already ship it.
+  tagline: The small crates behind ZapFast, Spotifast, Solco, TonePush and Chat with Work. Everything a native egui app needs besides its own interface, extracted from apps that already ship it.
   actions:
     - theme: brand
       text: Get started

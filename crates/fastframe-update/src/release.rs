@@ -565,19 +565,14 @@ mod tests {
             );
         }
         let target = target(Platform::MacOs, "aarch64", MacTarget::Arm64Only).unwrap();
-        let rekordflash = UpdateConfig::new(
-            "crmne/rekordflash",
-            "RekordFlash",
-            "rekordflash",
-            "0.5.0-alpha.2",
-        );
+        let solco = UpdateConfig::new("crmne/solco-releases", "Solco", "solco", "0.5.0-alpha.2");
         assert_eq!(
             asset_name(
-                &stem(&rekordflash, "0.5.0-alpha.3", target),
+                &stem(&solco, "0.5.0-alpha.3", target),
                 Kind::MacBundle,
                 Platform::MacOs
             ),
-            "rekordflash-v0.5.0-alpha.3-macos-arm64.dmg"
+            "solco-v0.5.0-alpha.3-macos-arm64.dmg"
         );
         assert_eq!(
             super::target(Platform::MacOs, "x86_64", MacTarget::Arm64Only),

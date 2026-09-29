@@ -129,10 +129,17 @@ impl EmojiSetup {
             },
             started.elapsed().as_secs_f32() * 1e3
         );
-        Emoji {
+        let mut emoji = Emoji {
             sources,
             synchronous: self.synchronous,
+            aspect: 1.0,
+        };
+        // The cell's shape, from a picture drawn here rather than on the
+        // interface thread: one emoji costs a millisecond or two.
+        if let Some(face) = emoji.render("\u{1F600}", 72) {
+            emoji.aspect = face.size[0] as f32 / face.size[1] as f32;
         }
+        emoji
     }
 }
 
@@ -162,6 +169,9 @@ pub fn available() -> bool {
 pub struct Emoji {
     sources: Vec<Source>,
     synchronous: bool,
+    /// The first font's cell, width over height: Noto's is a little wider
+    /// than tall, Apple's two thirds of an em narrower than it is tall.
+    aspect: f32,
 }
 
 impl std::fmt::Debug for Emoji {
@@ -173,6 +183,7 @@ impl std::fmt::Debug for Emoji {
                 &self.sources.iter().map(Source::name).collect::<Vec<_>>(),
             )
             .field("synchronous", &self.synchronous)
+            .field("aspect", &self.aspect)
             .finish()
     }
 }
@@ -230,6 +241,14 @@ impl Emoji {
     pub fn is_empty(&self) -> bool {
         self.sources.is_empty()
     }
+
+    /// The width of the first font's pictures over their height: what an
+    /// emoji's placeholder is scaled to, so it takes the room the picture
+    /// does. 1 when no font draws the grinning face.
+    #[must_use]
+    pub fn aspect(&self) -> f32 {
+        self.aspect
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +284,15 @@ mod tests {
     }
 
     #[test]
+    fn the_cell_shape_comes_from_the_first_font() {
+        // Noto's cell is 1.245 em wide and 1.17 em tall.
+        let aspect = bundled_only().aspect();
+        assert!((1.05..1.08).contains(&aspect), "{aspect}");
+        let nothing = EmojiSetup::default().system(false).load();
+        assert_eq!(nothing.aspect(), 1.0);
+    }
+
+    #[test]
     fn nothing_is_found_when_nothing_is_asked_for() {
         let emoji = EmojiSetup::default().system(false).load();
         assert!(emoji.is_empty());
@@ -289,7 +317,7 @@ mod tests {
         assert!(!emoji.is_empty(), "no system emoji font here");
         let face = emoji.render("😀", 72).expect("grinning face");
         assert!(face.has_colour());
-        for sequence in ["👍🏽", "👨‍👩‍👧", "🇩🇪", "#️⃣", "🏳️‍🌈", "👩‍❤️‍👨"]
+        for sequence in ["👍🏽", "👨‍👩‍👧", "🇩🇪", "#️⃣", "🏳️‍🌈", "👩‍❤️‍👨", "🫱🏼‍🫲🏿", "🏃‍➡️"]
         {
             let picture = emoji
                 .render(sequence, 72)
@@ -301,6 +329,7 @@ mod tests {
                 "{sequence} fell back to its first part"
             );
         }
+        println!("cell aspect {:.3}", emoji.aspect());
         // What one new picture costs the worker.
         let started = std::time::Instant::now();
         let faces: Vec<char> = ('\u{1F600}'..='\u{1F64F}').collect();
@@ -311,5 +340,40 @@ mod tests {
             "{:.2} ms per picture",
             started.elapsed().as_secs_f32() * 1e3 / faces.len() as f32
         );
+    }
+
+    /// Apple Color Emoji as macOS draws it: on macOS, with
+    /// `cargo test -p fastframe-emoji -- --ignored`.
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "reads this machine's fonts"]
+    fn apple_emoji_sit_where_core_text_puts_them() {
+        let emoji = EmojiSetup::default().load();
+        // 210 pixels is Apple's cell (1.3125 em) at its 160 ppem strike,
+        // so no scaling blurs the edges. CoreText draws the thumb's ink
+        // from row 20 to 179 and the flag's from 49 to 151.
+        let ink_rows = |cluster: &str| {
+            let picture = emoji.render(cluster, 210).expect(cluster);
+            let rows: Vec<usize> = picture
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .chunks(picture.size[0])
+                .enumerate()
+                .filter(|(_, row)| row.iter().any(|pixel| pixel[3] > 64))
+                .map(|(index, _)| index)
+                .collect();
+            (picture.size, rows[0], rows[rows.len() - 1] + 1)
+        };
+        assert_eq!(ink_rows("👍"), ([160, 210], 20, 179));
+        assert_eq!(ink_rows("🇩🇪"), ([160, 210], 49, 151));
+        assert!((emoji.aspect() - 160.0 / 210.0).abs() < 0.01);
+        // The runner facing right is Apple's `flip` record: the runner
+        // facing left, mirrored.
+        let left = emoji.render("🏃", 210).expect("runner");
+        let right = emoji
+            .render("🏃\u{200D}➡\u{FE0F}", 210)
+            .expect("runner facing right");
+        assert_eq!(right, left.mirrored());
     }
 }

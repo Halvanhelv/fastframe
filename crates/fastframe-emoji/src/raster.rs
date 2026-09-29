@@ -83,6 +83,23 @@ impl Picture {
         }
     }
 
+    /// This picture flipped left to right.
+    #[must_use]
+    pub(crate) fn mirrored(&self) -> Picture {
+        let width = self.size[0];
+        let rgba = self
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .chunks(width.max(1))
+            .flat_map(|row| row.iter().rev().flatten().copied())
+            .collect();
+        Picture {
+            size: self.size,
+            rgba,
+        }
+    }
+
     /// This picture resampled to `width` by `height` with a tent filter
     /// that widens when shrinking, so every source pixel counts. Working on
     /// premultiplied pixels keeps transparent neighbours from darkening the
@@ -301,6 +318,24 @@ mod tests {
         let mut clear = Picture::empty(2, 2);
         clear.draw(&filled(1, 1, [0, 64, 0, 128]), 0, 0, 1, 1);
         assert_eq!(&clear.rgba[..4], &[0, 64, 0, 128]);
+    }
+
+    #[test]
+    fn mirroring_reverses_each_row() {
+        let picture = Picture {
+            size: [3, 2],
+            rgba: (0..24).collect(),
+        };
+        let mirrored = picture.mirrored();
+        assert_eq!(mirrored.size, [3, 2]);
+        assert_eq!(
+            mirrored.rgba,
+            [
+                8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 20, 21, 22, 23, 16, 17, 18, 19, 12, 13, 14,
+                15
+            ]
+        );
+        assert_eq!(mirrored.mirrored(), picture);
     }
 
     #[test]

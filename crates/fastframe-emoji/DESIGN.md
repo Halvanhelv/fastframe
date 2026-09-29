@@ -87,6 +87,14 @@ flags, skin tones, families, the rainbow flag and keycaps on macOS 26, and a
 miss degrades to the bundled picture, not to a broken one. CoreText stays
 the fallback plan if a Mac shows gaps.
 
+Checked on macOS 27 against CoreText: harfrust gives CoreText's glyphs for
+all 3,944 RGI sequences and the 108 people facing right, and the pictures
+match CoreText's pixel for pixel, with two Apple details handled here.
+The people facing right are `sbix` `flip` records (another glyph's bitmap,
+mirrored), which skrifa does not read. And CoreText draws every Apple
+picture an eighth of an em below the position its data give, so the
+pictures are framed that way too.
+
 Windows keeps DirectWrite: Segoe UI Emoji is COLR outlines, which a
 pure-Rust painter could only draw by carrying a vector rasterizer with
 gradients. The drawing and the "is it one picture" test are PR #229's,

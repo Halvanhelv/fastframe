@@ -7,8 +7,9 @@
 //! advance wide and ascent plus descent tall, so every font's emoji sit on
 //! the text the way that font means them to.
 
-use skrifa::bitmap::{BitmapData, BitmapStrikes, Origin};
+use skrifa::bitmap::{BitmapData, BitmapGlyph, BitmapStrikes, Origin};
 use skrifa::instance::{LocationRef, Size};
+use skrifa::raw::TableProvider as _;
 use skrifa::{FontRef, GlyphId, MetadataProvider as _};
 
 use crate::raster::{self, Picture};
@@ -28,11 +29,23 @@ impl Bytes {
     }
 }
 
+/// How far below its data CoreText draws an `sbix` picture, in ems.
+///
+/// Every Apple Color Emoji glyph's bitmap starts at the baseline and rises
+/// one em, and CoreText draws each an eighth of an em lower: measured on
+/// macOS 27, every sequence at the 160 ppem strike sits 20 pixels below the
+/// position its data give, with the same horizontal position and size. The
+/// Apple font is the `sbix` font this path exists for, so its pictures are
+/// placed as macOS places them.
+const SBIX_DROP: f32 = 0.125;
+
 /// A colour bitmap font, ready to shape and draw.
 pub(crate) struct BitmapFont {
     bytes: Bytes,
     index: u32,
     shaper: harfrust::ShaperData,
+    /// How far below their data the pictures are drawn, in ems.
+    drop: f32,
     /// For the log.
     pub(crate) name: String,
 }
@@ -53,10 +66,12 @@ impl BitmapFont {
             return Err("no colour bitmaps");
         }
         let shaper = harfrust::ShaperData::new(&font);
+        let drop = if font.sbix().is_ok() { SBIX_DROP } else { 0.0 };
         Ok(Self {
             bytes,
             index,
             shaper,
+            drop,
             name,
         })
     }
@@ -115,13 +130,13 @@ impl BitmapFont {
         let strikes = BitmapStrikes::new(&font);
         let mut drawn = false;
         for glyph in &placed {
-            let Some(bitmap) = strikes.glyph_for_size(Size::new(scale), glyph.glyph) else {
+            let Some((bitmap, mirrored)) = bitmap(&font, &strikes, glyph.glyph, scale) else {
                 if glyph.advance != 0 {
                     return None;
                 }
                 continue;
             };
-            let picture = match bitmap.data {
+            let mut picture = match bitmap.data {
                 BitmapData::Png(data) => raster::decode_png(data)?,
                 BitmapData::Bgra(data) => {
                     raster::from_bgra(data, bitmap.width as usize, bitmap.height as usize)?
@@ -132,8 +147,8 @@ impl BitmapFont {
             // Where the bitmap sits, in ems, x rightwards from the cell's
             // left edge and y upwards from the baseline.
             let pen = glyph.x as f32 / units;
-            let lift = glyph.y as f32 / units;
-            let (left, top) = match bitmap.placement_origin {
+            let lift = glyph.y as f32 / units - self.drop;
+            let (mut left, top) = match bitmap.placement_origin {
                 Origin::TopLeft => (
                     pen + bitmap.inner_bearing_x / ppem,
                     lift + bitmap.inner_bearing_y / ppem,
@@ -145,6 +160,12 @@ impl BitmapFont {
                         + picture.size[1] as f32 / ppem,
                 ),
             };
+            if mirrored {
+                // Mirrored within the glyph's own advance.
+                let right = left + picture.size[0] as f32 / ppem;
+                left = 2.0 * pen + glyph.advance as f32 / units - right;
+                picture = picture.mirrored();
+            }
             let size = [
                 (picture.size[0] as f32 / ppem * scale).round().max(1.0) as usize,
                 (picture.size[1] as f32 / ppem * scale).round().max(1.0) as usize,
@@ -156,6 +177,41 @@ impl BitmapFont {
         }
         (drawn && canvas.coverage() > 0.0).then_some(canvas)
     }
+}
+
+/// A glyph's bitmap for `scale` pixels per em, and whether to mirror it.
+///
+/// skrifa reads `png ` data only. Apple Color Emoji draws 108 glyphs, the
+/// people who face right (U+27A1 sequences) among them, as `flip` data: the
+/// bitmap of the glyph it names, mirrored. `dupe` names a glyph to draw as
+/// it is.
+fn bitmap<'a>(
+    font: &FontRef<'a>,
+    strikes: &BitmapStrikes<'a>,
+    glyph: GlyphId,
+    scale: f32,
+) -> Option<(BitmapGlyph<'a>, bool)> {
+    if let Some(bitmap) = strikes.glyph_for_size(Size::new(scale), glyph) {
+        return Some((bitmap, false));
+    }
+    let sbix = font.sbix().ok()?;
+    let (source, mirrored) = sbix.strikes().iter().flatten().find_map(|strike| {
+        let data = strike.glyph_data(glyph).ok()??;
+        reference(data.graphic_type().to_be_bytes(), data.data())
+    })?;
+    let bitmap = strikes.glyph_for_size(Size::new(scale), source)?;
+    Some((bitmap, mirrored))
+}
+
+/// The glyph an `sbix` `flip` or `dupe` record draws, and whether mirrored.
+fn reference(graphic_type: [u8; 4], data: &[u8]) -> Option<(GlyphId, bool)> {
+    let mirrored = match &graphic_type {
+        b"flip" => true,
+        b"dupe" => false,
+        _ => return None,
+    };
+    let id = u16::from_be_bytes([*data.first()?, *data.get(1)?]);
+    Some((GlyphId::new(id.into()), mirrored))
 }
 
 /// A shaped glyph, in font units.
@@ -227,6 +283,25 @@ pub(crate) mod tests {
     fn fonts_without_colour_bitmaps_are_refused() {
         let reason = BitmapFont::new(Bytes::Static(b"nope"), 0, String::new()).err();
         assert_eq!(reason, Some("not a font"));
+    }
+
+    #[test]
+    fn flip_and_dupe_records_name_another_glyph() {
+        assert_eq!(
+            reference(*b"flip", &[3, 68]),
+            Some((GlyphId::new(836), true))
+        );
+        assert_eq!(
+            reference(*b"dupe", &[0, 7, 9]),
+            Some((GlyphId::new(7), false))
+        );
+        assert_eq!(reference(*b"flip", &[3]), None, "too short");
+        assert_eq!(reference(*b"png ", &[0, 7]), None);
+        assert_eq!(
+            noto().drop,
+            0.0,
+            "CBDT pictures sit where their data put them"
+        );
     }
 
     #[test]

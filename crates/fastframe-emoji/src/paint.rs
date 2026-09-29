@@ -159,8 +159,10 @@ pub fn prewarm<'a>(ctx: &egui::Context, clusters: impl IntoIterator<Item = &'a s
 /// The invisible placeholder's format for emoji beside text in `format`.
 ///
 /// The placeholder is scaled to be exactly as wide as the picture painted
-/// over it, so the emoji keeps the spaces on either side, and its line height
-/// is pinned so the row is no taller than plain text.
+/// over it (the emoji font's cell, [`EMOJI_SIDE`] rows tall, or as wide as
+/// it is tall when the cell is wider), so the emoji keeps the spaces on
+/// either side, and its line height is pinned so the row is no taller than
+/// plain text.
 fn placeholder(ui: &egui::Ui, format: &TextFormat) -> TextFormat {
     let (row_height, width) = ui.fonts_mut(|fonts| {
         let shaped = fonts.layout_no_wrap(
@@ -175,7 +177,7 @@ fn placeholder(ui: &egui::Ui, format: &TextFormat) -> TextFormat {
     hidden.underline = Stroke::NONE;
     hidden.strikethrough = Stroke::NONE;
     if width > 0.0 {
-        hidden.font_id.size *= row_height * EMOJI_SIDE / width;
+        hidden.font_id.size *= row_height * EMOJI_SIDE * get().aspect().min(1.0) / width;
     }
     hidden.line_height = Some(format.line_height.unwrap_or(row_height));
     hidden
@@ -212,8 +214,8 @@ pub fn append(
     job.text[start..].chars().count()
 }
 
-/// Paints one emoji's picture into `rect`, centred and as tall as the text
-/// row allows.
+/// Paints one emoji's picture into `rect`, centred: its cell a little taller
+/// than the rectangle, or smaller to fit the rectangle's width.
 ///
 /// A picture not drawn yet is queued to a worker thread and this frame
 /// leaves the transparent placeholder; the worker asks for a repaint when it
@@ -222,13 +224,7 @@ pub fn paint_cluster(ui: &egui::Ui, cluster: &str, rect: Rect) {
     let painter = ui.painter();
     match texture(ui.ctx(), cluster) {
         Some(Some(texture)) => {
-            let side = (rect.height() * EMOJI_SIDE).min(rect.width());
-            let size = texture.size_vec2();
-            let scale = (side / size.x).min(side / size.y);
-            let image_rect = Rect::from_center_size(
-                rect.center() + egui::vec2(0.0, rect.height() * 0.02),
-                size * scale,
-            );
+            let image_rect = fit(rect, texture.size_vec2());
             painter.image(
                 texture.id(),
                 image_rect,
@@ -247,6 +243,20 @@ pub fn paint_cluster(ui: &egui::Ui, cluster: &str, rect: Rect) {
         }
         None => {}
     }
+}
+
+/// Where a picture of `size` is painted for the placeholder `rect`: its
+/// height [`EMOJI_SIDE`] times the row's, unless that makes it wider than
+/// the rectangle, centred a little below the row's middle.
+fn fit(rect: Rect, size: egui::Vec2) -> Rect {
+    if size.x <= 0.0 || size.y <= 0.0 {
+        return Rect::from_center_size(rect.center(), egui::Vec2::ZERO);
+    }
+    let scale = (rect.width() / size.x).min(rect.height() * EMOJI_SIDE / size.y);
+    Rect::from_center_size(
+        rect.center() + egui::vec2(0.0, rect.height() * 0.02),
+        size * scale,
+    )
 }
 
 /// Lays text out for a text editor without changing character offsets: the
@@ -390,6 +400,29 @@ mod tests {
             .any(|delta| delta.image.height() == TEXTURE_HEIGHT as usize);
         assert!(uploaded, "the picture was uploaded in the first frame");
         output.textures_delta.clear();
+    }
+
+    #[test]
+    fn pictures_fill_their_placeholder() {
+        let row = Rect::from_min_size(Pos2::ZERO, egui::vec2(20.0, 20.0));
+        // Noto's cell, a little wider than tall, in a square placeholder.
+        let wide = fit(
+            row.with_max_x(row.height() * EMOJI_SIDE),
+            egui::vec2(77.0, 72.0),
+        );
+        assert!((wide.width() - row.height() * EMOJI_SIDE).abs() < 0.01);
+        assert!(wide.height() < wide.width());
+        // Apple's, 160 by 210, in a placeholder as narrow as the cell.
+        let aspect = 160.0 / 210.0;
+        let narrow = row.with_max_x(row.height() * EMOJI_SIDE * aspect);
+        let apple = fit(narrow, egui::vec2(160.0, 210.0));
+        assert!((apple.height() - row.height() * EMOJI_SIDE).abs() < 0.01);
+        assert!((apple.width() - narrow.width()).abs() < 0.01);
+        assert!((apple.center().x - narrow.center().x).abs() < 0.01);
+        // An editor's glyph box narrower than the cell shrinks the picture.
+        let squeezed = fit(row.with_max_x(10.0), egui::vec2(160.0, 210.0));
+        assert!((squeezed.width() - 10.0).abs() < 0.01);
+        assert!(fit(row, egui::Vec2::ZERO).area() == 0.0);
     }
 
     #[test]

@@ -183,6 +183,29 @@ fn resolve(probe: char) -> Vec<(String, PathBuf)> {
     answers
 }
 
+/// The file of the face macOS draws its own interface with (San Francisco,
+/// `SFNS.ttf`), as CoreText names it.
+pub(super) fn interface_font() -> Option<PathBuf> {
+    // SAFETY: the font is created here and released here; the copied URL is
+    // released after it is read.
+    unsafe {
+        let font = CTFontCreateUIFontForLanguage(K_CT_FONT_UI_FONT_SYSTEM, 0.0, std::ptr::null());
+        if font.is_null() {
+            return None;
+        }
+        let url = CTFontCopyAttribute(font, kCTFontURLAttribute);
+        CFRelease(font);
+        let path = path_of(url);
+        if !url.is_null() {
+            CFRelease(url);
+        }
+        path
+    }
+}
+
+/// `kCTFontUIFontSystem` in CoreText's `CTFontUIFontType`.
+const K_CT_FONT_UI_FONT_SYSTEM: u32 = 2;
+
 /// A `CFString` as a Rust string.
 ///
 /// # Safety
@@ -347,6 +370,13 @@ unsafe extern "C" {
         range: CFRange,
     ) -> *const c_void;
     fn CTFontCopyFamilyName(font: *const c_void) -> *const c_void;
+    /// The font macOS draws one kind of interface text with; size 0 is the
+    /// kind's own size.
+    fn CTFontCreateUIFontForLanguage(
+        kind: u32,
+        size: f64,
+        language: *const c_void,
+    ) -> *const c_void;
     fn CTFontCopyAttribute(font: *const c_void, attribute: *const c_void) -> *const c_void;
     /// The faces macOS falls through behind `font`, in its own order.
     fn CTFontCopyDefaultCascadeListForLanguages(
@@ -380,6 +410,13 @@ mod tests {
                 font.script
             );
         }
+    }
+
+    /// The interface face is a file epaint can draw from.
+    #[test]
+    fn the_interface_font_is_a_readable_file() {
+        let path = interface_font().expect("CoreText names the system font's file");
+        assert!(path.exists(), "{}", path.display());
     }
 
     /// A face that maps the probe and draws nothing is refused, so `load`

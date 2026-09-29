@@ -68,10 +68,12 @@ cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo clippy --locked -p fastframe-log --all-targets --no-default-features -- -D warnings
+cargo clippy --locked -p fastframe-fonts --all-targets --no-default-features -- -D warnings
 cargo test --locked --all-targets
 cargo test --locked --all-targets --all-features
 cargo test --locked --doc --all-features
 cargo test --locked -p fastframe-log --no-default-features
+cargo test --locked -p fastframe-fonts --no-default-features --lib
 RUSTDOCFLAGS='-D warnings' cargo doc --locked --all-features --no-deps
 ```
 

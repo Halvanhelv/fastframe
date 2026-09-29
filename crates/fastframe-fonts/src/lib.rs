@@ -2,8 +2,9 @@
 //!
 //! [`INTER`] is Inter 4.001 as a variable font, with its tabular figures
 //! frozen into the character map so numbers that change keep their width.
-//! [`FontSetup`] registers it at the weights an app uses, adds the system
-//! fonts that draw scripts Inter lacks ([`system`]), and returns egui's
+//! [`FontSetup`] registers the interface face (Inter, or the platform's own
+//! with [`Primary::System`]) at the weights an app uses, adds the system
+//! fonts that draw scripts it lacks ([`system`]), and returns egui's
 //! [`FontDefinitions`]:
 //!
 //! ```
@@ -18,9 +19,14 @@
 //! ```
 //!
 //! The default is Inter at 400 (egui's proportional family) and 500, 600
-//! and 700 (named families), with system fallbacks. Apps choose the weights,
-//! the monospace face, and any face of their own that should come right after
-//! Inter (Spotifast's monochrome emoji, for one).
+//! and 700 (named families), with system fallbacks. Apps choose the
+//! interface face, the weights, the monospace face, and any face of their
+//! own that should come right after it (Spotifast's monochrome emoji, for
+//! one).
+//!
+//! Inter is bundled by the default `inter` feature. An app that draws with
+//! the system's face can turn it off and leave the 880 KB out; without
+//! either, egui's own fonts draw the interface.
 
 use std::sync::Arc;
 
@@ -33,12 +39,35 @@ pub mod system;
 /// `tnum` feature frozen into its character map (see `fonts/README.md`).
 ///
 /// SIL Open Font License 1.1: apps ship `fonts/Inter-LICENSE.txt` with it.
+#[cfg(feature = "inter")]
 pub const INTER: &[u8] = include_bytes!("../fonts/InterVariable.ttf");
 
-/// The font data key the regular weight is registered under.
+/// The font data key the regular weight of the interface face is registered
+/// under, whichever face that is. The keys and family names keep Inter's
+/// name so apps that name them keep working.
 pub const INTER_REGULAR: &str = "inter";
 
-/// A weight of Inter the interface draws with.
+/// Which face draws the interface.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Primary {
+    /// The bundled Inter, the same on every machine (feature `inter`).
+    #[cfg(feature = "inter")]
+    #[cfg_attr(feature = "inter", default)]
+    Inter,
+    /// The face the platform draws its own interface with: San Francisco on
+    /// macOS, Segoe UI (Variable, on Windows 11) on Windows, and on Linux
+    /// fontconfig's `system-ui` (GNOME's Adwaita Sans, or whatever the
+    /// desktop prefers). Found once per process; when it cannot be found
+    /// or read, Inter draws instead, or egui's own fonts without the
+    /// `inter` feature.
+    ///
+    /// Unlike Inter, these faces draw proportional figures, so a counting
+    /// timer changes width as it counts.
+    #[cfg_attr(not(feature = "inter"), default)]
+    System,
+}
+
+/// A weight of the interface face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Weight {
     /// 400: body text. egui's [`FontFamily::Proportional`].
@@ -100,8 +129,8 @@ pub enum Monospace {
     /// egui's own monospace font (Hack, with the `default_fonts` feature),
     /// as ZapFast and Spotifast use.
     EguiDefault,
-    /// Inter at regular weight. Its figures are tabular, so readings keep
-    /// their width without a second face (Solco).
+    /// The interface face at regular weight: with Inter, whose figures are
+    /// tabular, readings keep their width without a second face (Solco).
     Inter,
     /// A face of the app's own, registered under `name`, ahead of egui's.
     Font {
@@ -115,6 +144,7 @@ pub enum Monospace {
 /// Which fonts an app registers with egui. See the [crate] documentation.
 #[derive(Clone, Debug)]
 pub struct FontSetup {
+    primary: Primary,
     weights: Vec<Weight>,
     monospace: Monospace,
     companions: Vec<(String, Arc<FontData>)>,
@@ -125,6 +155,7 @@ impl Default for FontSetup {
     /// Inter at every [`Weight`], egui's monospace, and system fallbacks.
     fn default() -> Self {
         Self {
+            primary: Primary::default(),
             weights: Weight::ALL.to_vec(),
             monospace: Monospace::EguiDefault,
             companions: Vec::new(),
@@ -134,6 +165,14 @@ impl Default for FontSetup {
 }
 
 impl FontSetup {
+    /// Chooses the interface face: Inter by default, or the system's
+    /// without the `inter` feature.
+    #[must_use]
+    pub fn primary(mut self, primary: Primary) -> Self {
+        self.primary = primary;
+        self
+    }
+
     /// Registers only these weights. Regular is always registered, since
     /// it is egui's proportional family.
     #[must_use]
@@ -149,7 +188,7 @@ impl FontSetup {
         self
     }
 
-    /// Adds a face right after Inter in every family, ahead of egui's own
+    /// Adds a face right after the interface face in every family, ahead of egui's own
     /// fallbacks and the system ones, such as a bundled emoji font. Added in
     /// call order.
     #[must_use]
@@ -158,7 +197,8 @@ impl FontSetup {
         self
     }
 
-    /// Whether to add installed fonts for scripts Inter does not draw
+    /// Whether to add installed fonts for scripts the interface face does
+    /// not draw
     /// ([`system::fallbacks`]). On by default; demos and screenshot tests
     /// turn it off so the machine's fonts do not change the result.
     #[must_use]
@@ -169,10 +209,11 @@ impl FontSetup {
 
     /// The font definitions, starting from egui's defaults.
     ///
-    /// Each family lists, in order: its Inter weight, the companions,
-    /// egui's own fonts, and the system fallbacks. The first call with
-    /// system fallbacks on scans the installed fonts (see
-    /// [`system::fallbacks`]); later calls reuse the result.
+    /// Each family lists, in order: its weight of the interface face, the
+    /// companions, egui's own fonts, and the system fallbacks. The first
+    /// call with system fallbacks on scans the installed fonts (see
+    /// [`system::fallbacks`]), and the first with [`Primary::System`] looks
+    /// for the platform's face; later calls reuse both.
     #[must_use]
     pub fn definitions(&self) -> FontDefinitions {
         let fallbacks: &[system::Fallback] = if self.system_fallbacks {
@@ -180,33 +221,44 @@ impl FontSetup {
         } else {
             &[]
         };
-        self.definitions_with(fallbacks)
+        let interface = match self.primary {
+            Primary::System => system::interface(),
+            #[cfg(feature = "inter")]
+            Primary::Inter => None,
+        };
+        self.definitions_with(fallbacks, interface)
     }
 
-    /// [`Self::definitions`] with the system fallbacks given, for tests.
-    fn definitions_with(&self, fallbacks: &'static [system::Fallback]) -> FontDefinitions {
+    /// [`Self::definitions`] with the system fallbacks and the platform's
+    /// interface face given, for tests.
+    fn definitions_with(
+        &self,
+        fallbacks: &'static [system::Fallback],
+        interface: Option<&'static system::Interface>,
+    ) -> FontDefinitions {
         let mut fonts = FontDefinitions::default();
-        let weighted = |weight: Weight| {
-            let mut data = FontData::from_static(INTER);
-            data.tweak.coords = VariationCoords::new([(b"wght", weight.value())]);
-            Arc::new(data)
-        };
-        fonts
-            .font_data
-            .insert(INTER_REGULAR.to_owned(), weighted(Weight::Regular));
+        let face = |weight: Weight| primary_face(interface, weight).map(Arc::new);
+        let regular = face(Weight::Regular);
+        let has_primary = regular.is_some();
+        if let Some(regular) = regular {
+            fonts.font_data.insert(INTER_REGULAR.to_owned(), regular);
+        }
         for (name, data) in &self.companions {
             fonts.font_data.insert(name.clone(), data.clone());
         }
 
         let proportional = fonts.families.entry(FontFamily::Proportional).or_default();
-        proportional.insert(0, INTER_REGULAR.to_owned());
+        let lead = usize::from(has_primary);
+        if has_primary {
+            proportional.insert(0, INTER_REGULAR.to_owned());
+        }
         for (position, (name, _)) in self.companions.iter().enumerate() {
-            proportional.insert(1 + position, name.clone());
+            proportional.insert(lead + position, name.clone());
         }
 
         let monospace_primary = match &self.monospace {
             Monospace::EguiDefault => None,
-            Monospace::Inter => Some(INTER_REGULAR.to_owned()),
+            Monospace::Inter => has_primary.then(|| INTER_REGULAR.to_owned()),
             Monospace::Font { name, data } => {
                 fonts.font_data.insert(name.clone(), data.clone());
                 Some(name.clone())
@@ -228,28 +280,36 @@ impl FontSetup {
         // Each named weight falls back like the regular one.
         let behind: Vec<String> = fonts.families[&FontFamily::Proportional]
             .iter()
-            .skip(1)
+            .skip(lead)
             .cloned()
             .collect();
         for weight in &self.weights {
             if *weight == Weight::Regular {
                 continue;
             }
-            fonts
-                .font_data
-                .insert(weight.name().to_owned(), weighted(*weight));
-            let mut family = vec![weight.name().to_owned()];
+            let mut family = Vec::new();
+            if let Some(data) = face(*weight) {
+                fonts.font_data.insert(weight.name().to_owned(), data);
+                family.push(weight.name().to_owned());
+            }
             family.extend(behind.iter().cloned());
             fonts.families.insert(weight.family(), family);
         }
 
-        // Installed fonts come last, so they never replace Inter's Latin or
-        // the companions' glyphs.
+        // The fallbacks are aligned to Inter's baseline; another interface
+        // face moves them onto its own.
+        let realign = interface.map_or(0.0, |interface| {
+            let regular = interface.face(Weight::Regular);
+            system::baseline_center(regular.bytes, regular.index)
+                .map_or(0.0, |center| center - system::INTER_BASELINE_CENTER)
+        });
+        // Installed fonts come last, so they never replace the interface
+        // face's Latin or the companions' glyphs.
         for fallback in fallbacks {
             let mut data = FontData::from_static(&fallback.bytes);
             data.index = fallback.index;
             data.tweak.scale = fallback.scale;
-            data.tweak.y_offset_factor = fallback.y_offset_factor;
+            data.tweak.y_offset_factor = fallback.y_offset_factor + realign;
             fonts
                 .font_data
                 .insert(fallback.name.clone(), Arc::new(data));
@@ -266,7 +326,104 @@ impl FontSetup {
     }
 }
 
+/// The interface face at `weight`: the platform's when one was found, else
+/// Inter (with the `inter` feature), else none.
+fn primary_face(interface: Option<&system::Interface>, weight: Weight) -> Option<FontData> {
+    if let Some(interface) = interface {
+        let face = interface.face(weight);
+        let mut data = FontData::from_static(face.bytes);
+        data.index = face.index;
+        data.tweak.coords =
+            VariationCoords::new(face.coords.iter().map(|(tag, value)| (tag, *value)));
+        return Some(data);
+    }
+    inter_face(weight)
+}
+
+#[cfg(feature = "inter")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "without the feature there is no face"
+)]
+fn inter_face(weight: Weight) -> Option<FontData> {
+    let mut data = FontData::from_static(INTER);
+    data.tweak.coords = VariationCoords::new([(b"wght", weight.value())]);
+    Some(data)
+}
+
+#[cfg(not(feature = "inter"))]
+fn inter_face(_weight: Weight) -> Option<FontData> {
+    None
+}
+
 #[cfg(test)]
+mod system_primary_tests {
+    use super::*;
+
+    /// Inter's file, read as a system face would be, standing in for San
+    /// Francisco or Segoe UI.
+    fn stand_in() -> &'static system::Interface {
+        let inter =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/InterVariable.ttf");
+        let choices = vec![system::interface_choice(inter); Weight::ALL.len()];
+        Box::leak(Box::new(
+            system::assemble_interface("Stand-in".into(), &choices).expect("a face"),
+        ))
+    }
+
+    #[test]
+    fn the_system_face_leads_every_family_at_its_weight() {
+        let fonts = FontSetup::default()
+            .primary(Primary::System)
+            .definitions_with(&[], Some(stand_in()));
+        assert_eq!(fonts.families[&FontFamily::Proportional][0], INTER_REGULAR);
+        for weight in Weight::ALL {
+            let data = &fonts.font_data[weight.name()];
+            let coords = data.tweak.coords.as_ref();
+            assert!(
+                coords
+                    .iter()
+                    .any(|(tag, value)| tag.to_be_bytes() == *b"wght" && *value == weight.value()),
+                "{weight:?}"
+            );
+            assert!(coords.iter().any(|(tag, _)| tag.to_be_bytes() == *b"opsz"));
+            assert_eq!(fonts.families[&weight.family()][0], weight.name());
+        }
+    }
+
+    #[test]
+    fn fallbacks_move_onto_the_system_faces_baseline() {
+        let fallbacks = system::tests_support::tall_yi_fallback();
+        let interface = stand_in();
+        let fonts = FontSetup::default().definitions_with(fallbacks, Some(interface));
+        let shift = fonts.font_data[&fallbacks[0].name].tweak.y_offset_factor
+            - fallbacks[0].y_offset_factor;
+        // The stand-in is Inter, so its baseline is Inter's.
+        assert!(shift.abs() < 1e-4, "{shift}");
+    }
+
+    #[test]
+    fn without_any_interface_face_egui_draws_and_every_family_exists() {
+        if cfg!(feature = "inter") {
+            return;
+        }
+        let fonts = FontSetup::default()
+            .monospace(Monospace::Inter)
+            .definitions_with(&[], None);
+        assert!(!fonts.font_data.contains_key(INTER_REGULAR));
+        for weight in Weight::ALL {
+            assert!(fonts.families.contains_key(&weight.family()), "{weight:?}");
+        }
+        let ctx = egui::Context::default();
+        ctx.set_fonts(fonts);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.label(egui::RichText::new("Bold").font(Weight::Bold.font_id(14.0)));
+        });
+        output.textures_delta.clear();
+    }
+}
+
+#[cfg(all(test, feature = "inter"))]
 mod tests {
     use super::*;
 
@@ -361,7 +518,7 @@ mod tests {
             scale: 1.1,
             y_offset_factor: 0.05,
         }]));
-        let fonts = FontSetup::default().definitions_with(fallbacks);
+        let fonts = FontSetup::default().definitions_with(fallbacks, None);
         for names in fonts.families.values() {
             assert_eq!(names.last().map(String::as_str), Some("fallback-arabic"));
         }
@@ -403,7 +560,7 @@ mod tests {
         for pixels_per_point in [1.0, 1.5, 2.0] {
             let ctx = egui::Context::default();
             ctx.set_pixels_per_point(pixels_per_point);
-            let mut fonts = FontSetup::default().definitions_with(yi);
+            let mut fonts = FontSetup::default().definitions_with(yi, None);
             let mut raw = (*fonts.font_data[&yi[0].name]).clone();
             raw.tweak.y_offset_factor = 0.0;
             fonts.font_data.insert("raw".into(), Arc::new(raw));

@@ -23,8 +23,19 @@ use std::sync::OnceLock;
 
 use skrifa::MetadataProvider as _;
 
+mod interface;
 #[cfg(target_os = "macos")]
 mod macos;
+
+#[cfg(test)]
+pub(crate) use interface::{Choice, assemble as assemble_interface};
+pub(crate) use interface::{Interface, interface};
+
+/// A choice of the first face of `path` for an interface weight, for tests.
+#[cfg(test)]
+pub(crate) fn interface_choice(path: PathBuf) -> Choice {
+    Choice { path, index: 0 }
+}
 
 /// An installed face registered as a fallback.
 #[derive(Clone, Debug, PartialEq)]
@@ -148,6 +159,27 @@ fn family_name(bytes: &[u8], index: u32) -> Option<String> {
         .map(|name| name.to_string())
 }
 
+/// Whether a face belongs to `family`, under its typographic family name
+/// or its family name, ignoring case. A family with more than four styles
+/// writes the shared name only in the typographic one (`Segoe UI Semibold`
+/// is typographic family `Segoe UI`).
+#[cfg_attr(
+    not(windows),
+    allow(dead_code, reason = "only Windows looks faces up by family")
+)]
+pub(crate) fn named(font: &skrifa::FontRef<'_>, family: &str) -> bool {
+    [
+        skrifa::string::StringId::TYPOGRAPHIC_FAMILY_NAME,
+        skrifa::string::StringId::FAMILY_NAME,
+    ]
+    .iter()
+    .any(|id| {
+        font.localized_strings(*id)
+            .english_or_first()
+            .is_some_and(|name| name.to_string().eq_ignore_ascii_case(family))
+    })
+}
+
 /// Every face in a font file, up to [`MAX_FACES`].
 pub(crate) fn faces(data: &[u8]) -> Vec<(u32, skrifa::FontRef<'_>)> {
     match skrifa::raw::FileRef::new(data) {
@@ -187,7 +219,11 @@ pub(crate) fn map(path: &Path) -> Option<memmap2::Mmap> {
 
 /// Inter's baseline measured from the centre of its line box, in ems:
 /// ascender 1984, descender -494, no line gap, 2048 units per em.
-const INTER_BASELINE_CENTER: f32 = (1984.0 / 2048.0) - 0.5 * ((1984.0 + 494.0) / 2048.0);
+pub(crate) const INTER_BASELINE_CENTER: f32 = (1984.0 / 2048.0) - 0.5 * ((1984.0 + 494.0) / 2048.0);
+
+/// Inter's x-height in ems (the top of `x`, 1118 units of 2048), which
+/// Arabic faces are measured against.
+const INTER_X_HEIGHT: f32 = 1118.0 / 2048.0;
 
 /// The shift that puts a fallback face's baseline on Inter's.
 ///
@@ -198,9 +234,16 @@ const INTER_BASELINE_CENTER: f32 = (1984.0 / 2048.0) - 0.5 * ((1984.0 + 494.0) /
 /// Offsetting by the difference in baseline-to-centre distances undoes the
 /// centring at every size.
 fn baseline_offset(bytes: &[u8], index: u32) -> f32 {
-    let Ok(font) = skrifa::FontRef::from_index(bytes, index) else {
+    let Some(center) = baseline_center(bytes, index) else {
         return 0.0;
     };
+    let offset = INTER_BASELINE_CENTER - center;
+    if offset.abs() > 0.001 { offset } else { 0.0 }
+}
+
+/// A face's baseline measured from the centre of its line box, in ems.
+pub(crate) fn baseline_center(bytes: &[u8], index: u32) -> Option<f32> {
+    let font = skrifa::FontRef::from_index(bytes, index).ok()?;
     let metrics = font.metrics(
         skrifa::instance::Size::unscaled(),
         skrifa::instance::LocationRef::default(),
@@ -208,10 +251,9 @@ fn baseline_offset(bytes: &[u8], index: u32) -> f32 {
     let units = f32::from(metrics.units_per_em);
     let height = metrics.ascent - metrics.descent + metrics.leading;
     if units <= 0.0 || height <= 0.0 {
-        return 0.0;
+        return None;
     }
-    let offset = INTER_BASELINE_CENTER - (metrics.ascent - 0.5 * height) / units;
-    if offset.abs() > 0.001 { offset } else { 0.0 }
+    Some((metrics.ascent - 0.5 * height) / units)
 }
 
 /// How much to enlarge an Arabic face so it reads as large as Inter.
@@ -239,11 +281,8 @@ fn arabic_scale(bytes: &[u8], index: u32) -> f32 {
         );
         Some((bounds.y_max - bounds.y_min.max(0.0)) / units)
     };
-    match (
-        height(crate::INTER, 0, 'x'),
-        height(bytes, index, '\u{0647}'),
-    ) {
-        (Some(latin), Some(arabic)) if arabic > 0.0 => scale_for(latin, arabic),
+    match height(bytes, index, '\u{0647}') {
+        Some(arabic) if arabic > 0.0 => scale_for(INTER_X_HEIGHT, arabic),
         _ => 1.0,
     }
 }
@@ -911,6 +950,36 @@ mod windows {
         (read > 0).then(|| first_name(&name)).flatten()
     }
 
+    /// The font the display settings name for message boxes, which Windows
+    /// draws its own interface text with: Segoe UI unless a user changed it.
+    #[allow(
+        unsafe_code,
+        reason = "Windows reports its interface fonts through a Win32 call"
+    )]
+    pub(super) fn message_font() -> Option<String> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            NONCLIENTMETRICSW, SPI_GETNONCLIENTMETRICS, SystemParametersInfoW,
+        };
+
+        // SAFETY: an all-zero NONCLIENTMETRICSW is a valid value of the
+        // plain C struct, and the call writes at most `cbSize` bytes into it.
+        let mut metrics: NONCLIENTMETRICSW = unsafe { std::mem::zeroed() };
+        metrics.cbSize = std::mem::size_of::<NONCLIENTMETRICSW>() as u32;
+        // SAFETY: as above; the pointer is to a live local of that size.
+        let read = unsafe {
+            SystemParametersInfoW(
+                SPI_GETNONCLIENTMETRICS,
+                metrics.cbSize,
+                (&raw mut metrics).cast(),
+                0,
+            )
+        };
+        if read == 0 {
+            return None;
+        }
+        first_name(&metrics.lfMessageFont.lfFaceName)
+    }
+
     /// The first string of a null-terminated list of them.
     fn first_name(names: &[u16]) -> Option<String> {
         let end = names.iter().position(|unit| *unit == 0)?;
@@ -956,6 +1025,22 @@ mod tests {
         assert!((scale_for(0.55, 0.30) - 1.25).abs() < 1e-6, "at most 25%");
     }
 
+    #[cfg(feature = "inter")]
+    #[test]
+    fn inters_x_height_is_the_one_arabic_is_measured_against() {
+        let font = skrifa::FontRef::new(crate::INTER).unwrap();
+        let x = font.charmap().map('x').unwrap();
+        let bounds = font
+            .glyph_metrics(
+                skrifa::instance::Size::unscaled(),
+                skrifa::instance::LocationRef::default(),
+            )
+            .bounds(x)
+            .unwrap();
+        assert!((bounds.y_max / 2048.0 - INTER_X_HEIGHT).abs() < 1e-6);
+    }
+
+    #[cfg(feature = "inter")]
     #[test]
     fn inters_own_baseline_needs_no_shift() {
         assert!(baseline_offset(crate::INTER, 0).abs() < f32::EPSILON);

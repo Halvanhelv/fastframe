@@ -172,6 +172,12 @@ pub struct UpdateConfig {
     /// [`Prereleases::Never`], reads only GitHub's latest release, which is
     /// never a pre-release.
     pub prereleases: Prereleases,
+    /// What comes before the version in a release's tag. The default, `v`,
+    /// tags release `1.2.3` as `v1.2.3`. A repository that releases more than
+    /// one program tags each with its own prefix (`desktop-v1.2.3`); its
+    /// latest release may belong to another program, so with any other
+    /// prefix the check reads the release list instead.
+    pub tag_prefix: &'static str,
     /// Which macOS disk image a release carries. The default,
     /// [`MacTarget::Universal`], is `<slug>-v<version>-macos-universal.dmg`.
     pub mac_target: MacTarget,
@@ -233,6 +239,7 @@ impl UpdateConfig {
             publisher_key: None,
             additional_publisher_keys: &[],
             prereleases: Prereleases::Never,
+            tag_prefix: "v",
             mac_target: MacTarget::Universal,
         }
     }
@@ -278,6 +285,11 @@ impl UpdateConfig {
             "With pre-releases on, the current version must be \
              major.minor.patch[-pre.release] in semver's characters"
         );
+        ensure!(
+            valid_name(self.tag_prefix) && !self.tag_prefix.starts_with('.'),
+            "The tag prefix must be letters, digits, '-', '_' or '.': {}",
+            self.tag_prefix
+        );
         if let Some(key) = self.publisher_key {
             signing::decode_key(key)?;
         }
@@ -302,6 +314,17 @@ impl UpdateConfig {
         self.prereleases == Prereleases::WhenRunningPrerelease
             && version::Semver::parse(self.current_version)
                 .is_some_and(|version| version.is_prerelease())
+    }
+
+    /// The tag of release `version`.
+    fn tag(&self, version: &str) -> String {
+        format!("{}{version}", self.tag_prefix)
+    }
+
+    /// Whether GitHub's latest release may belong to another program in the
+    /// same repository, so the check has to read the release list.
+    fn shares_repository(&self) -> bool {
+        self.tag_prefix != "v"
     }
 
     /// Whether `version` may be downloaded, staged and installed: a plain
@@ -419,9 +442,23 @@ mod tests {
                 portable_executable: Some(""),
                 ..ZAPFAST
             },
+            UpdateConfig {
+                tag_prefix: "",
+                ..ZAPFAST
+            },
+            UpdateConfig {
+                tag_prefix: "../v",
+                ..ZAPFAST
+            },
         ] {
             assert!(broken.validate().is_err(), "{broken:?}");
         }
+        UpdateConfig {
+            tag_prefix: "desktop-v",
+            ..ZAPFAST
+        }
+        .validate()
+        .unwrap();
     }
 
     #[test]

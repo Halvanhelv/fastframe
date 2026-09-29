@@ -47,6 +47,8 @@ struct Listed {
     html_url: String,
     #[serde(default)]
     draft: bool,
+    #[serde(default)]
+    prerelease: bool,
 }
 
 /// The newest release, when it is newer than the running app.
@@ -55,7 +57,7 @@ pub(crate) fn newer(
     transport: &dyn Transport,
     source: &Source,
 ) -> Result<Option<Release>> {
-    if config.prerelease_channel() {
+    if config.prerelease_channel() || config.shares_repository() {
         return newest_listed(config, transport, source);
     }
     let mut body = Vec::new();
@@ -77,9 +79,10 @@ pub(crate) fn newer(
     )
 }
 
-/// The pre-release channel: the highest published version above the
-/// running pre-release, stable or not, from the release list. Drafts and
-/// tags that are not `v` and a safe semantic version are skipped.
+/// The highest published version above the running one, from the release
+/// list. On the pre-release channel it may be a pre-release; otherwise only
+/// stable releases count, as GitHub's latest release would. Drafts and tags
+/// that are not the tag prefix and a safe semantic version are skipped.
 fn newest_listed(
     config: &UpdateConfig,
     transport: &dyn Transport,
@@ -104,9 +107,14 @@ fn newest_listed(
         let listed: Vec<Listed> =
             serde_json::from_slice(&body).context("Unexpected release list")?;
         for release in &listed {
-            let Some(tag) = release.tag_name.strip_prefix('v') else {
+            let Some(tag) = release.tag_name.strip_prefix(config.tag_prefix) else {
                 continue;
             };
+            if !config.prerelease_channel()
+                && (release.prerelease || !version::is_plain_release(tag))
+            {
+                continue;
+            }
             let Some(candidate) = version::Semver::parse(tag) else {
                 continue;
             };
@@ -173,7 +181,7 @@ pub(crate) fn metadata(
     ensure!(
         !metadata.draft
             && (!metadata.prerelease || config.prerelease_channel())
-            && metadata.tag_name == format!("v{version}"),
+            && metadata.tag_name == config.tag(version),
         "The release changed. Check for updates again."
     );
     Ok(metadata)
@@ -645,5 +653,48 @@ mod tests {
             let name = asset_name(&stem, kind, platform);
             assert!(checksum(text, &name).is_ok(), "{name}");
         }
+    }
+
+    fn desktop(current: &'static str) -> UpdateConfig {
+        UpdateConfig {
+            current_version: current,
+            tag_prefix: "desktop-v",
+            ..ZAPFAST
+        }
+    }
+
+    #[test]
+    fn a_shared_repository_offers_only_its_own_stable_releases() {
+        let page = list(&[
+            entry("plugin-v0.9.0", false, false),
+            entry("v0.8.0", false, false),
+            entry("desktop-v0.5.0", true, false),
+            entry("desktop-v0.4.0-alpha.1", false, false),
+            entry("desktop-v0.3.0", false, true),
+            entry("desktop-v0.2.0", false, false),
+        ]);
+        let transport = FakeTransport::default()
+            .serve(LATEST, listing("plugin-v0.9.0").as_bytes())
+            .serve(&format!("{LIST}1"), &page);
+        assert_eq!(
+            newer(&desktop("0.1.0"), &transport, &Source::github()).unwrap(),
+            Some(Release {
+                version: "0.2.0".into(),
+                url: "https://github.com/crmne/zapfast/releases/tag/desktop-v0.2.0".into(),
+            }),
+            "other programs' tags, drafts and pre-releases are skipped"
+        );
+        assert_eq!(transport.requested(), [format!("{LIST}1")]);
+        assert_eq!(offered(&desktop("0.2.0"), &transport), None);
+    }
+
+    #[test]
+    fn release_metadata_carries_the_prefixed_tag() {
+        let url = "https://api.github.com/repos/crmne/zapfast/releases/tags/desktop-v0.2.0";
+        let body = |tag: &str| serde_json::json!({"tag_name": tag, "assets": []}).to_string();
+        let transport = FakeTransport::default().serve(url, body("desktop-v0.2.0").as_bytes());
+        assert!(metadata(&desktop("0.1.0"), &transport, &Source::github(), "0.2.0").is_ok());
+        let transport = FakeTransport::default().serve(url, body("v0.2.0").as_bytes());
+        assert!(metadata(&desktop("0.1.0"), &transport, &Source::github(), "0.2.0").is_err());
     }
 }

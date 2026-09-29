@@ -153,8 +153,9 @@ impl Source {
     pub(crate) fn release(&self, config: &UpdateConfig, version: &str) -> String {
         match &self.0 {
             Origin::GitHub => format!(
-                "https://api.github.com/repos/{}/releases/tags/v{version}",
-                config.repository
+                "https://api.github.com/repos/{}/releases/tags/{}",
+                config.repository,
+                config.tag(version)
             ),
             Origin::Local(base) => feed(base),
         }
@@ -189,7 +190,11 @@ impl Source {
                 Origin::GitHub => {
                     url.host_str() == Some("github.com")
                         && url.path()
-                            == format!("/{}/releases/download/v{version}/{name}", config.repository)
+                            == format!(
+                                "/{}/releases/download/{}/{name}",
+                                config.repository,
+                                config.tag(version)
+                            )
                 }
                 Origin::Local(_) => true,
             }
@@ -286,6 +291,21 @@ mod tests {
         )
         .unwrap();
         assert!(!Source::github().owns_asset(&ZAPFAST, &other, "0.17.0", "checksums.txt"));
+
+        let desktop = UpdateConfig {
+            tag_prefix: "desktop-v",
+            ..ZAPFAST
+        };
+        assert_eq!(
+            Source::github().release(&desktop, "0.17.0"),
+            "https://api.github.com/repos/crmne/zapfast/releases/tags/desktop-v0.17.0"
+        );
+        let prefixed = Url::parse(
+            "https://github.com/crmne/zapfast/releases/download/desktop-v0.17.0/checksums.txt",
+        )
+        .unwrap();
+        assert!(Source::github().owns_asset(&desktop, &prefixed, "0.17.0", "checksums.txt"));
+        assert!(!Source::github().owns_asset(&desktop, &asset, "0.17.0", "checksums.txt"));
     }
 
     #[test]

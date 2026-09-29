@@ -80,7 +80,10 @@ would report fastframe's version, so the app passes its own.
 1. `check` reads `https://api.github.com/repos/<repository>/releases/latest`
    and compares its tag with `current_version`. Pre-releases are never
    offered; a release candidate hears about its final release. On the
-   pre-release channel (below) it reads the release list instead.
+   pre-release channel (below) it reads the release list instead. So does
+   an app whose repository releases more than one program: with a
+   `tag_prefix` other than `v` (`desktop-v1.2.3`), only its own tags count,
+   and GitHub's latest release, which may be another program's, is not read.
 2. `installation` refuses copies a package manager owns: Flatpak, Snap,
    apt, dnf, pacman (including the AUR), Nix, Homebrew (formula paths and
    casks, which link to the bundle from `Caskroom`) and `cargo install`, and

@@ -94,13 +94,16 @@ fn serve(
     let mut message: MSG = unsafe { std::mem::zeroed() };
     // SAFETY: `message` is a valid MSG for this thread's queue.
     while unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
-        if message.message == WM_APP {
-            for change in pending.try_iter() {
-                match change {
-                    Change::Label(id, label) => item.set_label(&id, &label),
-                    Change::Visible(id, visible) => item.set_visible(&id, visible),
-                }
+        // The open menu's modal loop takes the thread's messages and drops
+        // the WM_APP poke, so every message this loop gets applies what is
+        // waiting, and the one tray-icon posts as its menu closes catches up.
+        for change in pending.try_iter() {
+            match change {
+                Change::Label(id, label) => item.set_label(&id, &label),
+                Change::Visible(id, visible) => item.set_visible(&id, visible),
             }
+        }
+        if message.message == WM_APP {
             continue;
         }
         // SAFETY: `message` was just filled in by GetMessageW.

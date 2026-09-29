@@ -13,28 +13,42 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 use crate::{Config, Router};
 
+/// A change to the menu, carried to the tray thread.
+enum Change {
+    Label(String, String),
+    Visible(String, bool),
+}
+
 pub(crate) struct Host {
-    labels: Sender<(String, String)>,
+    changes: Sender<Change>,
     thread_id: u32,
 }
 
 impl Host {
     /// Makes the item on a new thread and waits for it to exist.
     pub(crate) fn start(config: Config, router: Router) -> Result<Self, String> {
-        let (labels, relabel) = std::sync::mpsc::channel();
+        let (changes, pending) = std::sync::mpsc::channel();
         let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         std::thread::Builder::new()
             .name(format!("{}-tray", config.id))
-            .spawn(move || serve(&config, router, &relabel, &ready_tx))
+            .spawn(move || serve(&config, router, &pending, &ready_tx))
             .map_err(|error| error.to_string())?;
         let thread_id = ready_rx
             .recv_timeout(Duration::from_secs(5))
             .map_err(|_| "the tray thread did not answer".to_owned())??;
-        Ok(Self { labels, thread_id })
+        Ok(Self { changes, thread_id })
     }
 
     pub(crate) fn set_label(&mut self, id: &str, label: String) {
-        if self.labels.send((id.to_owned(), label)).is_ok() {
+        self.change(Change::Label(id.to_owned(), label));
+    }
+
+    pub(crate) fn set_visible(&mut self, id: &str, visible: bool) {
+        self.change(Change::Visible(id.to_owned(), visible));
+    }
+
+    fn change(&self, change: Change) {
+        if self.changes.send(change).is_ok() {
             self.poke(WM_APP);
         }
     }
@@ -64,10 +78,10 @@ impl Drop for Host {
 fn serve(
     config: &Config,
     router: Router,
-    relabel: &Receiver<(String, String)>,
+    pending: &Receiver<Change>,
     ready: &Sender<Result<u32, String>>,
 ) {
-    let item = match crate::native::build(config, router) {
+    let mut item = match crate::native::build(config, router) {
         Ok(item) => item,
         Err(error) => {
             let _ = ready.send(Err(error.to_string()));
@@ -81,8 +95,11 @@ fn serve(
     // SAFETY: `message` is a valid MSG for this thread's queue.
     while unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
         if message.message == WM_APP {
-            for (id, label) in relabel.try_iter() {
-                item.set_label(&id, &label);
+            for change in pending.try_iter() {
+                match change {
+                    Change::Label(id, label) => item.set_label(&id, &label),
+                    Change::Visible(id, visible) => item.set_visible(&id, visible),
+                }
             }
             continue;
         }

@@ -57,6 +57,18 @@ impl Host {
         });
     }
 
+    pub(crate) fn set_visible(&mut self, id: &str, visible: bool) {
+        if let Some((config, _)) = &mut self.pending {
+            crate::set_visible(&mut config.menu, id, visible);
+            return;
+        }
+        ITEM.with(|slot| {
+            if let Some(item) = slot.borrow_mut().as_mut() {
+                item.set_visible(id, visible);
+            }
+        });
+    }
+
     /// Makes the item if this is the first window, and brings the app
     /// forward.
     pub(crate) fn attach(&mut self) {
@@ -271,7 +283,11 @@ mod tests {
         };
         let mut host = Host::start(config, router).unwrap();
         host.set_label("play", "Pause".into());
+        host.set_visible("play", false);
         let (config, _) = host.pending.as_ref().unwrap();
-        assert_eq!(config.menu[0], crate::MenuItem::action("play", "Pause"));
+        assert_eq!(
+            config.menu[0],
+            crate::MenuItem::action("play", "Pause").visible(false)
+        );
     }
 }

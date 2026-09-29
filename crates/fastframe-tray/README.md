@@ -22,6 +22,8 @@ let tray = Tray::spawn(
             MenuItem::action("show", "Show or hide Spotifast"),
             MenuItem::Separator,
             MenuItem::action("play-pause", "Play"),
+            // Hidden until the app turns it on:
+            MenuItem::action("lock", "Lock Spotifast").visible(false),
             MenuItem::Separator,
             MenuItem::action("quit", "Quit"),
         ],
@@ -41,8 +43,9 @@ for event in tray.events() {
     }
 }
 
-// Labels can change:
+// Labels can change, and entries can come and go, keeping their place:
 tray.set_label("play-pause", if playing { "Pause" } else { "Play" });
+tray.set_visible("lock", password_set);
 
 // When a window is made (the macOS item is created by the first call):
 tray.attach();
@@ -50,6 +53,11 @@ tray.attach();
 // While no window exists (runs AppKit's loop on macOS, sleeps elsewhere):
 fastframe_tray::idle(std::time::Duration::from_millis(150));
 ```
+
+Labels and visibility change while the app runs, on every platform. On Linux
+a hidden entry stays in the StatusNotifier menu with its `visible` flag off;
+tray-icon's menus have no hidden entries, so on Windows and macOS it is taken
+out and put back after the shown entries before it.
 
 ## Platforms
 

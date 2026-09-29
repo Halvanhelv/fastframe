@@ -37,6 +37,11 @@
 //!         }
 //!     }
 //! }
+//! // Entries can change their label, or come and go in their place:
+//! if let Some(tray) = &mut tray {
+//!     tray.set_label("show", "Show ZapFast");
+//!     tray.set_visible("show", true);
+//! }
 //! // When a window has been made (macOS creates the item then):
 //! if let Some(tray) = &mut tray {
 //!     tray.attach();
@@ -107,18 +112,31 @@ pub enum MenuItem {
         id: &'static str,
         /// What the entry says. Change it with [`Tray::set_label`].
         label: String,
+        /// Whether the menu shows it. Change it with [`Tray::set_visible`].
+        visible: bool,
     },
     /// A line between groups of entries.
     Separator,
 }
 
 impl MenuItem {
-    /// A clickable entry.
+    /// A clickable entry, shown.
     pub fn action(id: &'static str, label: impl Into<String>) -> Self {
         Self::Action {
             id,
             label: label.into(),
+            visible: true,
         }
+    }
+
+    /// The same entry, shown or hidden from the start. A separator is always
+    /// shown.
+    #[must_use]
+    pub fn visible(mut self, shown: bool) -> Self {
+        if let Self::Action { visible, .. } = &mut self {
+            *visible = shown;
+        }
+        self
     }
 }
 
@@ -186,6 +204,16 @@ impl Tray {
         self.host.set_label(id, label.into());
         #[cfg(not(any(target_os = "linux", windows, target_os = "macos")))]
         let _ = (id, label);
+    }
+
+    /// Shows or hides the entry `id` (an action that only applies while a
+    /// setting is on, say), keeping its place in the menu. Unknown ids are
+    /// ignored.
+    pub fn set_visible(&mut self, id: &str, visible: bool) {
+        #[cfg(any(target_os = "linux", windows, target_os = "macos"))]
+        self.host.set_visible(id, visible);
+        #[cfg(not(any(target_os = "linux", windows, target_os = "macos")))]
+        let _ = (id, visible);
     }
 
     /// A window exists. On macOS the first call makes the item, and each
@@ -317,7 +345,9 @@ fn left_click(on_windows: bool) -> Event {
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
 fn set_label(menu: &mut [MenuItem], id: &str, new: String) -> bool {
     for item in menu {
-        if let MenuItem::Action { id: known, label } = item
+        if let MenuItem::Action {
+            id: known, label, ..
+        } = item
             && *known == id
         {
             *label = new;
@@ -325,6 +355,38 @@ fn set_label(menu: &mut [MenuItem], id: &str, new: String) -> bool {
         }
     }
     false
+}
+
+/// Shows or hides `id` in `menu`; whether its visibility changed.
+#[cfg(any(target_os = "linux", target_os = "macos", windows, test))]
+fn set_visible(menu: &mut [MenuItem], id: &str, shown: bool) -> bool {
+    for item in menu {
+        if let MenuItem::Action {
+            id: known, visible, ..
+        } = item
+            && *known == id
+        {
+            let changed = *visible != shown;
+            *visible = shown;
+            return changed;
+        }
+    }
+    false
+}
+
+/// Where the entry `id` sits among the entries `menu` shows: the position a
+/// native menu, which holds only what it shows, inserts it at.
+#[cfg(any(target_os = "macos", windows, test))]
+fn shown_position(menu: &[MenuItem], id: &str) -> Option<usize> {
+    let mut position = 0;
+    for item in menu {
+        match item {
+            MenuItem::Action { id: known, .. } if *known == id => return Some(position),
+            MenuItem::Action { visible: false, .. } => {}
+            MenuItem::Action { .. } | MenuItem::Separator => position += 1,
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -408,5 +470,50 @@ mod tests {
         assert!(!set_label(&mut menu, "missing", "x".into()));
         assert_eq!(menu[0], MenuItem::action("play", "Pause"));
         assert_eq!(menu[2], MenuItem::action("quit", "Quit"));
+    }
+
+    #[test]
+    fn entries_start_shown_unless_asked_and_separators_stay() {
+        assert_eq!(
+            MenuItem::action("lock", "Lock").visible(false),
+            MenuItem::Action {
+                id: "lock",
+                label: "Lock".into(),
+                visible: false,
+            }
+        );
+        assert_eq!(MenuItem::Separator.visible(false), MenuItem::Separator);
+    }
+
+    #[test]
+    fn visibility_changes_by_id_and_reports_a_change() {
+        let mut menu = vec![
+            MenuItem::action("show", "Show"),
+            MenuItem::action("lock", "Lock").visible(false),
+        ];
+        assert!(set_visible(&mut menu, "lock", true));
+        assert!(!set_visible(&mut menu, "lock", true), "already shown");
+        assert!(!set_visible(&mut menu, "missing", false));
+        assert_eq!(menu[1], MenuItem::action("lock", "Lock"));
+        assert!(set_visible(&mut menu, "lock", false));
+        assert_eq!(menu[1], MenuItem::action("lock", "Lock").visible(false));
+    }
+
+    /// muda menus hold only what they show, so a shown entry goes back in
+    /// after the shown entries and separators before it.
+    #[test]
+    fn a_shown_entry_goes_back_after_what_is_shown_before_it() {
+        let menu = [
+            MenuItem::action("show", "Show"),
+            MenuItem::action("play", "Play").visible(false),
+            MenuItem::action("lock", "Lock"),
+            MenuItem::Separator,
+            MenuItem::action("quit", "Quit"),
+        ];
+        assert_eq!(shown_position(&menu, "show"), Some(0));
+        assert_eq!(shown_position(&menu, "play"), Some(1));
+        assert_eq!(shown_position(&menu, "lock"), Some(1));
+        assert_eq!(shown_position(&menu, "quit"), Some(3));
+        assert_eq!(shown_position(&menu, "missing"), None);
     }
 }

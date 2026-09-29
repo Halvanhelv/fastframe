@@ -39,6 +39,12 @@ impl Host {
         });
     }
 
+    pub(crate) fn set_visible(&mut self, id: &str, visible: bool) {
+        self.handle.update(|item| {
+            crate::set_visible(&mut item.menu, id, visible);
+        });
+    }
+
     /// The item runs on its own thread from the start.
     pub(crate) fn attach(&mut self) {}
 }
@@ -81,10 +87,11 @@ impl ksni::Tray for Item {
         self.menu
             .iter()
             .map(|item| match item {
-                MenuItem::Action { id, label } => {
+                MenuItem::Action { id, label, visible } => {
                     let id: &'static str = id;
                     ksni::menu::StandardItem {
                         label: label.clone(),
+                        visible: *visible,
                         activate: Box::new(move |item: &mut Self| {
                             item.router.send(Event::Menu(id));
                         }),
@@ -162,5 +169,37 @@ mod tests {
             events.try_iter().collect::<Vec<_>>(),
             [Event::Menu("quit"), Event::Toggle]
         );
+    }
+
+    /// ksni keeps hidden entries in the menu with `visible` off, so the host
+    /// hides and shows them in place.
+    #[test]
+    fn hidden_entries_are_sent_hidden_and_can_be_shown() {
+        use ksni::Tray as _;
+        let (sender, _events) = std::sync::mpsc::channel();
+        let menu = vec![
+            MenuItem::action("show", "Show or hide ZapFast"),
+            MenuItem::action("lock", "Lock ZapFast").visible(false),
+        ];
+        let router = Router::new(sender, std::sync::Arc::new(|| {}), &menu);
+        let mut item = Item {
+            id: "zapfast",
+            title: "ZapFast".into(),
+            icon: |size| vec![0; size * size * 4],
+            menu,
+            router,
+        };
+        let shown = |item: &Item| -> Vec<bool> {
+            item.menu()
+                .iter()
+                .map(|entry| match entry {
+                    ksni::MenuItem::Standard(entry) => entry.visible,
+                    _ => panic!("an entry"),
+                })
+                .collect()
+        };
+        assert_eq!(shown(&item), [true, false]);
+        crate::set_visible(&mut item.menu, "lock", true);
+        assert_eq!(shown(&item), [true, true]);
     }
 }

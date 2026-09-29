@@ -31,6 +31,7 @@ written for one of those apps first and moved here once another app needed it.
 | --- | --- |
 | [`fastframe-text`](crates/fastframe-text) | Follows the desktop's font rendering settings (hinting, antialiasing, sub-pixel positioning, text weight) in egui, and snaps hand-placed text to whole pixels. |
 | [`fastframe-fonts`](crates/fastframe-fonts) | Bundled Inter (tabular figures) or the platform's own interface face at the app's weights, and installed fonts for every script it lacks, aligned to its baseline. |
+| [`fastframe-emoji`](crates/fastframe-emoji) | Colour emoji in the platform's own style (Apple, Segoe UI, the desktop's) with a bundled fallback, inline in egui text as selectable placeholders, drawn off the interface thread. |
 | [`fastframe-icons`](crates/fastframe-icons) | Embedded SVG icon sets for egui: the `icons!` macro, a bytes loader that survives `reduce_texture_memory`, and the Lucide icons the apps share. |
 | [`fastframe-theme`](crates/fastframe-theme) | JSON colour palettes, a catalogue loaded off the interface thread, the eight shared palettes, following the Omarchy desktop's theme with filesystem notifications, and revealing a change of colours from the middle of the window outwards. |
 | [`fastframe-i18n`](crates/fastframe-i18n) | Bundled gettext catalogs: a build-time PO compiler for `build.rs`, `gettext`/`pgettext`/`ngettext` lookups, system language detection, and the template update script. |

@@ -30,8 +30,8 @@ section below has a subsection per app with the details.
 
 | App | Adopts | Not now |
 | --- | --- | --- |
-| ZapFast | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos), [update](#fastframe-update) | |
-| Spotifast | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos) (the double-click setting only), [update](#fastframe-update) | |
+| ZapFast | [text](#fastframe-text), [fonts](#fastframe-fonts) (with the system's face), [emoji](#fastframe-emoji), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos), [update](#fastframe-update) | |
+| Spotifast | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [theme](#fastframe-theme), [i18n](#fastframe-i18n), [log](#fastframe-log), [tray](#fastframe-tray), [shell](#fastframe-shell), [macos](#fastframe-macos) (the double-click setting only), [update](#fastframe-update) | [emoji](#fastframe-emoji) until it lays out colour emoji (it keeps Inter and its monochrome face for now) |
 | Solco | [text](#fastframe-text), [fonts](#fastframe-fonts), [icons](#fastframe-icons), [macos](#fastframe-macos) (done in b5985bb); [update](#fastframe-update) (with the pre-release channel); [log](#fastframe-log) (only the facade-free redaction and panic line, with `default-features = false`) later | [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations; [shell](#fastframe-shell) (no tray or background mode); its `tracing` logger stays |
 | TonePush | [text](#fastframe-text), [fonts](#fastframe-fonts), [update](#fastframe-update) (with `portable_executable`) | [icons](#fastframe-icons) later (its own macros and layout); [log](#fastframe-log) (it uses `eprintln!`); [shell](#fastframe-shell); [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations |
 | Chat with Work Local Agent | [text](#fastframe-text) | [fonts](#fastframe-fonts) (it draws with the platform's UI font); [tray](#fastframe-tray) and [shell](#fastframe-shell) (one winit loop with `pump_app_events`, tray-icon 0.25); [log](#fastframe-log) until it wants a log file; [theme](#fastframe-theme) and [i18n](#fastframe-i18n) until it adds custom themes or translations |
@@ -64,9 +64,10 @@ with Work (58da999, which applies it to the system UI font it uses).
 
 ## fastframe-fonts
 
-Bundled Inter at the app's weights, the monospace choice, companions such
-as a bundled emoji face, and the system fallback faces with their baseline
-and Arabic adjustments. Each app keeps its sizes and text styles, its own
+Bundled Inter (or, with `Primary::System`, the platform's interface face)
+at the app's weights, the monospace choice, companions such as a bundled
+emoji face, and the system fallback faces with their baseline and Arabic
+adjustments. Each app keeps its sizes and text styles, its own
 extra faces (ZapFast's colour emoji overlay, Spotifast's skin font and
 playlist face, TonePush's Plex Mono file), and when it installs fonts.
 
@@ -157,6 +158,35 @@ tabular in labels too, and system fallbacks are added unless turned off.
 ### Chat with Work
 
 It draws with the platform's UI font and bundles none; nothing to move.
+
+## fastframe-emoji
+
+Colour emoji from the platform's font (Apple Color Emoji, Segoe UI Emoji,
+the desktop's bitmap emoji font) with the app's bundled font behind it,
+laid out as placeholders and drawn on a worker thread. See the crate's
+[DESIGN.md](crates/fastframe-emoji/DESIGN.md).
+
+### ZapFast
+
+| Delete | Lines | Instead |
+| --- | --- | --- |
+| `src/emoji.rs` font loading, ligature table, bitmap decoding and texture cache | about 450 | `EmojiSetup::default().bundled(NOTO).synchronous(demo).install()` and `fastframe_emoji::warm_up` on the thread that already warms the font |
+| `src/emoji.rs` `pieces`, `is_emoji`, `only_emoji`, `append`, `editor_job`, `paint`, `paint_cluster`, `placeholder_rects`, `PLACEHOLDER` | about 250 | the same names in `fastframe_emoji` (a module that re-exports them keeps the call sites) |
+
+Behaviour that changes: emoji are drawn in the platform's style on macOS
+and Windows (flags on Windows still come from the bundled Noto); on Linux
+fontconfig's emoji face is used wherever it is installed; a new emoji
+appears one frame after its text rather than stalling the frame that shows
+it; pictures are framed in each font's cell (Noto's is the same as before).
+
+### Spotifast
+
+Keeps Inter and its monochrome `NotoEmoji.ttf` companion until it lays
+out colour emoji in egui text with `append` and `paint`. Its own renderers
+(`milkdrop/overlay.rs`, `ui/winamp/pixel_text.rs`) can call
+`fastframe_emoji::get().render(cluster, height)` for a premultiplied
+picture, off the interface thread, and keep the monochrome face as their
+fallback.
 
 ## fastframe-icons
 

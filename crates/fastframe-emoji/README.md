@@ -42,6 +42,11 @@ on its way leaves the monochrome glyph for that frame. Text drawn outside
 egui's text shapes (an app's own renderer) is out of its reach; see
 `Emoji::render`.
 
+Because the layout is egui's, a sequence the monochrome font does not join
+keeps the width of its parts: a family laid out as three people becomes one
+picture centred in a three-emoji gap. Lay out text where that matters with
+`append`, which gives every emoji one placeholder's width.
+
 ### Selectable placeholders
 
 For text whose copied selection must turn each emoji back into its

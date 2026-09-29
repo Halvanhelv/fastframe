@@ -141,8 +141,44 @@ pub const UPDATES: UpdateConfig = UpdateConfig {
   `--version` probe still checks the exact version.
 - Nothing about the file formats changes: `handoff.json`, the markers and the
   staging names are the same as for stable releases.
-- A local feed (`Source::local`) serves the list as `<base>/releases.json`
-  (one page) and the chosen release's metadata as `<base>/latest.json`.
+- A local feed (`Source::local`) or the app's own feed (`Source::feed`)
+  serves the list as `<base>/releases.json` (one page) and the chosen
+  release's metadata as `<base>/latest.json`.
+
+## An app's own feed
+
+An app whose repository is private cannot use GitHub's release API without
+a token, so it can serve its releases itself and point the updater there:
+
+```rust
+let updater = Updater::new(UPDATES, transport).with_source(Source::feed("https://example.com/app")?);
+```
+
+`<base>/latest.json` is shaped like GitHub's release, with only the fields
+the updater reads:
+
+```json
+{
+  "tag_name": "v1.2.3",
+  "html_url": "https://example.com/app",
+  "draft": false,
+  "prerelease": false,
+  "assets": [
+    { "name": "app-v1.2.3-macos-universal.dmg", "browser_download_url": "https://example.com/app/v1.2.3/app-v1.2.3-macos-universal.dmg", "size": 15000000 },
+    { "name": "checksums.txt", "browser_download_url": "https://example.com/app/v1.2.3/checksums.txt", "size": 106 },
+    { "name": "checksums.txt.sig", "browser_download_url": "https://example.com/app/v1.2.3/checksums.txt.sig", "size": 64 }
+  ]
+}
+```
+
+The feed must be HTTPS, and every download must come from its origin:
+redirects elsewhere are refused, so the server streams the files. The names,
+checksums and publisher signature are the same as on GitHub.
+
+A feed needs a publisher key: `check` and `download` refuse one when
+`UpdateConfig::publisher_key` is `None`. Checksums served by the same server
+as the files only catch corruption; the signature is what stops a server
+that was broken into from shipping its own build.
 
 ## Apple silicon only
 

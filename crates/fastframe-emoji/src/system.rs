@@ -13,6 +13,13 @@ use std::path::{Path, PathBuf};
 use crate::bitmap::{BitmapFont, Bytes};
 
 /// Maps a font file read-only.
+#[cfg_attr(
+    windows,
+    allow(
+        dead_code,
+        reason = "Windows draws its own emoji font through DirectWrite"
+    )
+)]
 #[allow(
     unsafe_code,
     reason = "memory mapping is the only way to use a 190 MB font without reading it whole"
@@ -27,6 +34,13 @@ pub(crate) fn map(path: &Path) -> Option<memmap2::Mmap> {
 }
 
 /// Opens a colour bitmap face from a file, logging why one is refused.
+#[cfg_attr(
+    windows,
+    allow(
+        dead_code,
+        reason = "Windows draws its own emoji font through DirectWrite"
+    )
+)]
 pub(crate) fn open(path: &Path, index: u32) -> Option<BitmapFont> {
     let map = map(path)?;
     match BitmapFont::new(Bytes::Mapped(map), index, path.display().to_string()) {

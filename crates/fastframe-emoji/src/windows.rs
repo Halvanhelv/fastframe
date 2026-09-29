@@ -280,7 +280,7 @@ impl IDWriteTextRenderer_Impl for Counter_Impl {
         _mode: DWRITE_MEASURING_MODE,
         run: *const DWRITE_GLYPH_RUN,
         _description: *const DWRITE_GLYPH_RUN_DESCRIPTION,
-        _effect: Ref<IUnknown>,
+        _effect: Ref<'_, IUnknown>,
     ) -> Result<()> {
         // SAFETY: DirectWrite passes a valid glyph run for this call.
         let Some(run) = (unsafe { run.as_ref() }) else {
@@ -330,7 +330,7 @@ impl IDWriteTextRenderer_Impl for Counter_Impl {
         _x: f32,
         _y: f32,
         _underline: *const DWRITE_UNDERLINE,
-        _effect: Ref<IUnknown>,
+        _effect: Ref<'_, IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
@@ -341,7 +341,7 @@ impl IDWriteTextRenderer_Impl for Counter_Impl {
         _x: f32,
         _y: f32,
         _strikethrough: *const DWRITE_STRIKETHROUGH,
-        _effect: Ref<IUnknown>,
+        _effect: Ref<'_, IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
@@ -351,10 +351,10 @@ impl IDWriteTextRenderer_Impl for Counter_Impl {
         _context: *const c_void,
         _x: f32,
         _y: f32,
-        _object: Ref<IDWriteInlineObject>,
+        _object: Ref<'_, IDWriteInlineObject>,
         _sideways: BOOL,
         _right_to_left: BOOL,
-        _effect: Ref<IUnknown>,
+        _effect: Ref<'_, IUnknown>,
     ) -> Result<()> {
         Ok(())
     }

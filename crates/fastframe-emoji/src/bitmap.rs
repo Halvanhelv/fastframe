@@ -17,6 +17,13 @@ use crate::raster::{self, Picture};
 /// A font file's bytes: compiled in, or mapped from disk.
 pub(crate) enum Bytes {
     Static(&'static [u8]),
+    #[cfg_attr(
+        windows,
+        allow(
+            dead_code,
+            reason = "Windows draws its own emoji font through DirectWrite"
+        )
+    )]
     Mapped(memmap2::Mmap),
 }
 

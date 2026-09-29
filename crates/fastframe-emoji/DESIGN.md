@@ -155,3 +155,105 @@ jitter unless the app keeps a tabular face for them.
   app's choice: needed on Windows for flags and anywhere the system lacks
   a sequence. Dropping it on Linux means no colour emoji where none is
   installed.
+
+## Emoji in every egui text: the plugin
+
+Added 2026-09-29 at Carmine's request: colour emoji should come from
+fastframe itself, in every widget, without each app laying its text out
+through `append` and `paint`. Spotifast drew them with 300 lines of its own
+(`src/emoji.rs`), and labels, buttons, menus, tooltips and text fields it did
+not route through that code kept the monochrome face.
+
+Colour glyphs inside epaint's text renderer would be the natural home, but
+that is an egui change that may never be accepted upstream, and fastframe
+does not patch egui. An egui [`Plugin`](https://docs.rs/egui/0.36/egui/trait.Plugin.html)
+reaches every text without it: `Plugin::output_hook` sees the frame's
+`FullOutput` after every widget has painted and before the backend
+tessellates it.
+
+```rust
+ctx.add_plugin(fastframe_emoji::EmojiPlugin::default());
+```
+
+That is the whole opt-in. An app still chooses its fonts with
+`EmojiSetup` and runs `warm_up` on a thread; the plugin only draws.
+
+### Finding the text
+
+The hook walks `FullOutput::shapes`, recursing into `Shape::Vec`, and
+looks at every `Shape::Text`. Text already turned into a `Shape::Mesh`
+before the hook (an app that tessellates itself, a `Shape::Callback`
+painting with its own renderer) is out of reach, as is anything drawn
+outside egui (Spotifast's Winamp pixel text and MilkDrop overlay, which
+have [`Emoji::render`]). Rotated text (`angle` other than zero) is left
+alone.
+
+### Which glyphs are an emoji
+
+`LayoutJob::text` is split with [`pieces`], the same segmentation `append`
+uses. Glyphs are matched to characters without epaint's `Glyph::cluster`,
+which only the apps' egui fork has: stock epaint emits one glyph per
+character (a continuation of a joined sequence is a zero-width glyph with
+no texels, carrying the sequence's first character), rows omit their
+`\n`, and a row's glyphs sorted by `first_vertex` are in logical order even
+after a right-to-left row is reordered (reordering moves glyphs with their
+mesh). So the rows' glyphs, taken in that order, pair off with the text's
+characters. An elided galley's last glyph is the overflow character and
+pairs with nothing. A cluster is coloured only when its first glyph
+carries its first character; any other mismatch leaves the whole galley
+as egui drew it.
+
+The monochrome fallback face does not join every sequence (Noto Emoji
+draws a family as its three people). The cluster's rectangle is the union
+of its glyphs on that row, and the picture is fitted into it, so a family
+becomes one picture centred where the three stood.
+
+### Hiding the monochrome glyphs
+
+A galley with a cluster to colour is cloned (only its rows that hold one)
+and each of that cluster's glyph quads gets transparent vertices; the
+text shape then points at the clone. Layout, wrapping, elision, selection
+highlights and the cursor are untouched, since they are other vertices or
+other shapes. A text shape with `override_text_color` would repaint those
+vertices, so its colour is baked into the clone's glyph vertices first and
+the override dropped. `opacity_factor` stays on the text and tints the
+pictures the same way, so fading text fades its emoji.
+
+Glyphs an app already made transparent are left alone: fastframe's own
+`PLACEHOLDER` (U+2B1B) from `append`, and the transparent emoji of
+`editor_job`, which the app paints itself. That rule is per cluster, not
+per galley, so a typed ⬛ beside them is still coloured.
+
+### Painting
+
+Each picture is a textured rectangle appended right after its text shape,
+in the same `Shape::Vec` or at the same place in the list, with the text's
+clip rectangle, so layer order and clipping (a scrolled `TextEdit`, a
+table cell) are the text's own. It is sized as `paint_cluster` sizes it:
+1.08 rows tall, centred, in the emoji font's cell proportions, smaller when
+the glyphs' width is narrower. ZapFast's placeholders and the plugin's
+pictures therefore match side by side.
+
+A picture that is not drawn yet keeps the monochrome glyph for that frame
+and is queued to the worker, which asks for a repaint; a cluster no font
+draws keeps it for good. Textures uploaded inside the hook would reach the
+backend a frame late (egui has already taken the frame's texture delta), so
+the hook moves the new delta into `FullOutput::textures_delta` itself.
+
+### Cost
+
+A galley whose text has no character from U+00A9 up is skipped after one
+scan of its bytes, with no allocation. The result for every other galley
+is kept by galley identity (its `Arc`, held so the address cannot be
+reused) from one frame to the next: a steady screen clones nothing and
+segments nothing. Entries not seen in a frame are dropped. While a
+cluster's picture is still on its way the galley is re-examined each frame
+until it arrives.
+
+### What stays with the app
+
+Copying and selection work on the galley's real text, which the plugin
+never changes. An app that keeps `append` (ZapFast's transcript, whose
+selection maps placeholders back through `placements`) keeps working
+beside the plugin. Scale factor: rectangles are in points and pictures are
+72-pixel textures scaled on the GPU, as with `paint_cluster`.

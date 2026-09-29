@@ -96,7 +96,7 @@ fn upload(ctx: &egui::Context, cluster: &str, picture: Option<Picture>) -> Optio
 
 /// The cluster's texture: `Some(Some)` ready, `Some(None)` no font draws
 /// it, `None` on its way.
-fn texture(ctx: &egui::Context, cluster: &str) -> Option<Option<TextureHandle>> {
+pub(crate) fn texture(ctx: &egui::Context, cluster: &str) -> Option<Option<TextureHandle>> {
     let cache = Cache::of(ctx);
     let mut textures = cache.lock();
     for (arrived, picture) in std::mem::take(&mut textures.arrived) {
@@ -248,7 +248,7 @@ pub fn paint_cluster(ui: &egui::Ui, cluster: &str, rect: Rect) {
 /// Where a picture of `size` is painted for the placeholder `rect`: its
 /// height [`EMOJI_SIDE`] times the row's, unless that makes it wider than
 /// the rectangle, centred a little below the row's middle.
-fn fit(rect: Rect, size: egui::Vec2) -> Rect {
+pub(crate) fn fit(rect: Rect, size: egui::Vec2) -> Rect {
     if size.x <= 0.0 || size.y <= 0.0 {
         return Rect::from_center_size(rect.center(), egui::Vec2::ZERO);
     }

@@ -19,12 +19,15 @@
 //! std::thread::spawn(fastframe_emoji::warm_up);
 //! ```
 //!
-//! Then lay text out with [`append`] and paint with [`paint`]. Pictures are
-//! drawn on a worker thread, never inside a frame (see [`paint_cluster`]).
+//! Then either add [`EmojiPlugin`] to the egui context, which colours the
+//! emoji in every text egui draws, or lay text out with [`append`] and paint
+//! with [`paint`]. Pictures are drawn on a worker thread, never inside a
+//! frame (see [`paint_cluster`]).
 //! [`Emoji::render`] draws a picture outside egui.
 
 mod bitmap;
 mod paint;
+mod plugin;
 mod raster;
 mod segment;
 mod system;
@@ -36,6 +39,7 @@ use std::sync::OnceLock;
 pub use paint::{
     PLACEHOLDER, append, editor_job, paint, paint_cluster, placeholder_rects, prewarm,
 };
+pub use plugin::EmojiPlugin;
 pub use raster::Picture;
 pub use segment::{Piece, is_emoji, only_emoji, pieces};
 

@@ -25,7 +25,30 @@ fastframe_emoji::EmojiSetup::default()
     .bundled(include_bytes!("../assets/fonts/NotoColorEmoji.ttf"))
     .install();
 std::thread::spawn(fastframe_emoji::warm_up);
+```
 
+### Every text, with no layout code
+
+```rust
+ctx.add_plugin(fastframe_emoji::EmojiPlugin::default());
+```
+
+The plugin looks at the frame's text after every widget has painted:
+labels, buttons, menus, tooltips, text fields, text an app paints itself.
+Each emoji's monochrome glyph is hidden and its picture painted in the
+glyph's place, a little taller than the row and clipped like the text, so
+layout, wrapping, elision and selection stay egui's own. A picture still
+on its way leaves the monochrome glyph for that frame. Text drawn outside
+egui's text shapes (an app's own renderer) is out of its reach; see
+`Emoji::render`.
+
+### Selectable placeholders
+
+For text whose copied selection must turn each emoji back into its
+characters (ZapFast's transcript), lay the emoji out as placeholders. The
+plugin leaves these to the app.
+
+```rust
 // Laying out a message:
 let mut job = egui::text::LayoutJob::default();
 let mut placements = Vec::new();

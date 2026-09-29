@@ -567,4 +567,30 @@ mod tests {
             println!("{weight:?}: face {} {:?}", face.index, face.coords);
         }
     }
+
+    /// Windows 10's interface face, which Windows 11 still installs: its
+    /// static Segoe UI files, found by family and chosen by weight.
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "reads this machine's fonts"]
+    fn segoe_ui_is_found_by_weight_here() {
+        println!("message font: {:?}", super::super::windows::message_font());
+        let (family, faces) =
+            family_faces(&super::super::font_directories(), &["Segoe UI".to_owned()])
+                .expect("Segoe UI is installed");
+        assert_eq!(family, "Segoe UI");
+        assert!(faces.iter().all(|face| !face.variable));
+        let files: Vec<String> = choose_weights(&faces)
+            .expect("faces")
+            .iter()
+            .map(|choice| {
+                let name = choice.path.file_name().unwrap_or_default();
+                name.to_string_lossy().to_lowercase()
+            })
+            .collect();
+        assert_eq!(
+            files,
+            ["segoeui.ttf", "seguisb.ttf", "seguisb.ttf", "segoeuib.ttf"]
+        );
+    }
 }

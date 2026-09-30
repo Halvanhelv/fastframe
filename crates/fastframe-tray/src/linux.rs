@@ -13,8 +13,14 @@ pub(crate) struct Host {
 
 impl Host {
     pub(crate) fn start(config: Config, router: Router) -> Result<Self, ksni::Error> {
+        let sandbox = sandboxed(
+            std::path::Path::new("/.flatpak-info").exists(),
+            std::env::var_os("FLATPAK_ID").is_some(),
+        );
+        let icon_name = icon_name(config.id, sandbox, &icon_dirs());
         let item = Item {
             id: config.id,
+            icon_name,
             title: config.title,
             icon: config.icon,
             menu: config.menu,
@@ -24,12 +30,7 @@ impl Host {
         // generated StatusNotifierItem name; register the unique connection
         // name instead, as ksni requires for sandboxed apps (Spotifast
         // 1c03c21).
-        let handle = item
-            .disable_dbus_name(sandboxed(
-                std::path::Path::new("/.flatpak-info").exists(),
-                std::env::var_os("FLATPAK_ID").is_some(),
-            ))
-            .spawn()?;
+        let handle = item.disable_dbus_name(sandbox).spawn()?;
         Ok(Self { handle })
     }
 
@@ -54,8 +55,61 @@ fn sandboxed(flatpak_info: bool, flatpak_id: bool) -> bool {
     flatpak_info || flatpak_id
 }
 
+/// The icon theme name a tray host can look up, or empty for none.
+///
+/// Many hosts draw only what they find through the icon theme and never fall
+/// back to the pixmap (fastframe#4), so name the app's icon when the desktop
+/// has it: a Flatpak exports its icon under the app id, and a package
+/// installs one under the app's own id. A portable copy has neither, and its
+/// host gets the pixmap alone, as before.
+fn icon_name(id: &str, sandbox: bool, dirs: &[std::path::PathBuf]) -> String {
+    if sandbox {
+        return std::env::var("FLATPAK_ID").unwrap_or_default();
+    }
+    let installed = dirs.iter().any(|dir| {
+        let hicolor = dir.join("icons/hicolor");
+        let sizes = std::fs::read_dir(&hicolor).into_iter().flatten().flatten();
+        sizes
+            .map(|size| size.path().join("apps"))
+            .chain([dir.join("pixmaps")])
+            .any(|apps| {
+                ["svg", "png"]
+                    .iter()
+                    .any(|ext| apps.join(format!("{id}.{ext}")).is_file())
+            })
+    });
+    if installed {
+        id.to_owned()
+    } else {
+        String::new()
+    }
+}
+
+/// The XDG data directories an icon theme is read from, the user's first.
+fn icon_dirs() -> Vec<std::path::PathBuf> {
+    let home = std::env::var_os("XDG_DATA_HOME")
+        .filter(|dir| !dir.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".local/share"))
+        });
+    let system = std::env::var("XDG_DATA_DIRS")
+        .ok()
+        .filter(|dirs| !dirs.is_empty())
+        .unwrap_or_else(|| "/usr/local/share:/usr/share".to_owned());
+    home.into_iter()
+        .chain(
+            system
+                .split(':')
+                .filter(|dir| !dir.is_empty())
+                .map(std::path::PathBuf::from),
+        )
+        .collect()
+}
+
 struct Item {
     id: &'static str,
+    icon_name: String,
     title: String,
     icon: DrawIcon,
     menu: Vec<MenuItem>,
@@ -69,6 +123,10 @@ impl ksni::Tray for Item {
 
     fn title(&self) -> String {
         self.title.clone()
+    }
+
+    fn icon_name(&self) -> String {
+        self.icon_name.clone()
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
@@ -128,6 +186,19 @@ mod tests {
     }
 
     #[test]
+    fn an_installed_icon_is_named_and_a_missing_one_is_not() {
+        let root =
+            std::env::temp_dir().join(format!("fastframe-tray-icons-{}", std::process::id()));
+        let apps = root.join("icons/hicolor/scalable/apps");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(apps.join("zapfast.svg"), "<svg/>").unwrap();
+        let dirs = [root.join("missing"), root.clone()];
+        assert_eq!(icon_name("zapfast", false, &dirs), "zapfast");
+        assert_eq!(icon_name("spotifast", false, &dirs), "");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn either_flatpak_marker_means_sandboxed() {
         assert!(sandboxed(true, false));
         assert!(sandboxed(false, true));
@@ -146,6 +217,7 @@ mod tests {
         let router = Router::new(sender, std::sync::Arc::new(|| {}), &menu);
         let mut item = Item {
             id: "zapfast",
+            icon_name: String::new(),
             title: "ZapFast".into(),
             icon: |size| vec![0; size * size * 4],
             menu,
@@ -184,6 +256,7 @@ mod tests {
         let router = Router::new(sender, std::sync::Arc::new(|| {}), &menu);
         let mut item = Item {
             id: "zapfast",
+            icon_name: String::new(),
             title: "ZapFast".into(),
             icon: |size| vec![0; size * size * 4],
             menu,

@@ -65,6 +65,21 @@ pub fn parse_fc_match(output: &str) -> Option<TextRendering> {
     })
 }
 
+/// `family` as an `fc-match` pattern. In fontconfig's pattern syntax `-`
+/// starts a point size and `:` and `,` separate elements, so they are
+/// escaped: `sans-serif` unescaped asks for a family called `sans`.
+#[cfg_attr(not(unix), allow(dead_code))]
+fn pattern(family: &str) -> String {
+    let mut out = String::with_capacity(family.len());
+    for c in family.chars() {
+        if matches!(c, '\\' | '-' | ':' | ',') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 /// Asks fontconfig how `family` is rendered, through `fc-match`.
 ///
 /// Returns `None` when `fc-match` is missing, fails, or prints nothing
@@ -75,7 +90,7 @@ pub fn read(family: &str) -> Option<TextRendering> {
     let output = std::process::Command::new("fc-match")
         .arg("-f")
         .arg(FORMAT)
-        .arg(family)
+        .arg(pattern(family))
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .output()
@@ -89,6 +104,16 @@ pub fn read(family: &str) -> Option<TextRendering> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn family_names_are_escaped_for_fc_match() {
+        // Unescaped, fc-match reads `sans-serif` as the family `sans` at a
+        // size `serif`, and answers for a family nobody asked about.
+        assert_eq!(pattern("sans-serif"), r"sans\-serif");
+        assert_eq!(pattern("system-ui"), r"system\-ui");
+        assert_eq!(pattern("Noto Sans"), "Noto Sans");
+        assert_eq!(pattern(r"a:b,c\d"), r"a\:b\,c\\d");
+    }
 
     #[test]
     fn hintstyles() {

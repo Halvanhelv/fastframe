@@ -322,9 +322,8 @@ fn resolve() -> Option<Interface> {
     let asking: Vec<Option<std::process::Child>> = Weight::ALL
         .iter()
         .map(|weight| {
-            let pattern = format!("system-ui:weight={}:slant=0", fontconfig_weight(*weight));
             std::process::Command::new("fc-match")
-                .args(["-f", FC_FORMAT, &pattern])
+                .args(["-f", FC_FORMAT, &fontconfig_pattern(*weight)])
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
@@ -359,6 +358,15 @@ fn resolve() -> Option<Interface> {
 /// The `fc-match` format [`parse_fc_match`] reads.
 #[cfg_attr(any(target_os = "macos", windows), allow(dead_code))]
 const FC_FORMAT: &str = "%{index}|%{family[0]}|%{file}";
+
+/// The `fc-match` pattern for `system-ui` at `weight`. The `-` is escaped:
+/// unescaped, fontconfig reads `system-ui` as the family `system` at a size
+/// `ui`, and answers with its default face whatever the desktop configures
+/// for `system-ui`.
+#[cfg_attr(any(target_os = "macos", windows), allow(dead_code))]
+fn fontconfig_pattern(weight: Weight) -> String {
+    format!(r"system\-ui:weight={}:slant=0", fontconfig_weight(weight))
+}
 
 /// fontconfig's weight scale for a [`Weight`].
 #[cfg_attr(any(target_os = "macos", windows), allow(dead_code))]
@@ -398,6 +406,18 @@ mod tests {
 
     fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join(name)
+    }
+
+    #[test]
+    fn system_ui_is_asked_for_by_its_escaped_name() {
+        assert_eq!(
+            fontconfig_pattern(Weight::Regular),
+            r"system\-ui:weight=80:slant=0"
+        );
+        assert_eq!(
+            fontconfig_pattern(Weight::Bold),
+            r"system\-ui:weight=200:slant=0"
+        );
     }
 
     #[test]

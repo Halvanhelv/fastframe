@@ -483,16 +483,19 @@ fn filename_is_local(filename: &str) -> bool {
         && filename.ends_with(".json")
 }
 
-/// Reads one palette file: a regular file (not a link) in `directory`, at
-/// most [`MAX_FILE_BYTES`], UTF-8, and a valid palette.
+/// Reads one palette file in `directory`: a regular file, or a link to one
+/// (a palette another tool such as pywal writes elsewhere), at most
+/// [`MAX_FILE_BYTES`], UTF-8, and a valid palette.
 fn read_theme<P: Palette>(directory: &Path, filename: &str) -> Result<CustomTheme<P>, String> {
     if !filename_is_local(filename) {
         return Err("expected a JSON filename in the themes folder".into());
     }
     let path = directory.join(filename);
-    let metadata = std::fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
+    // Follows a link: the checks below apply to the file it points to, so a
+    // link to a folder, a device or nothing is still refused.
+    let metadata = std::fs::metadata(&path).map_err(|error| error.to_string())?;
     if !metadata.is_file() {
-        return Err("expected a regular file, not a directory or symbolic link".into());
+        return Err("expected a regular file, not a directory".into());
     }
     if metadata.len() > MAX_FILE_BYTES {
         return Err("theme exceeds the 64 KiB file limit".into());
@@ -553,6 +556,13 @@ fn discover<P: Palette>(directory: &Path, selected: Option<&str>) -> Loaded<P> {
         if filename_is_local(filename) && Some(filename) != selected {
             match entry.file_type() {
                 Ok(kind) if kind.is_file() => names.push(filename.to_owned()),
+                // A link counts when it leads to a regular file.
+                Ok(kind)
+                    if kind.is_symlink()
+                        && std::fs::metadata(entry.path()).is_ok_and(|target| target.is_file()) =>
+                {
+                    names.push(filename.to_owned());
+                }
                 Ok(_) => {}
                 Err(error) => log::warn!("unable to inspect theme {filename:?}: {error}"),
             }
@@ -839,18 +849,46 @@ mod tests {
         ] {
             assert!(read_theme::<Colors>(&dir, filename).is_err(), "{filename}");
         }
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(root.path().join("outside.json"), dir.join("link.json"))
-                .unwrap();
-            assert!(read_theme::<Colors>(&dir, "link.json").is_err());
-            assert!(
-                discover::<Colors>(&dir, Some("link.json"))
-                    .themes
-                    .iter()
-                    .all(|theme| theme.filename != "link.json")
-            );
+    }
+
+    /// A palette another tool writes elsewhere (pywal, wallust, matugen) can
+    /// be linked into the themes folder instead of copied on every change
+    /// (crmne/fastframe#5). The file it leads to gets the same checks.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_is_read_as_the_file_it_points_to() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("themes");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(root.path().join("pywal.json"), b"{}").unwrap();
+        symlink(root.path().join("pywal.json"), dir.join("pywal.json")).unwrap();
+        std::fs::create_dir(root.path().join("folder")).unwrap();
+        symlink(root.path().join("folder"), dir.join("folder.json")).unwrap();
+        symlink(root.path().join("missing.json"), dir.join("dangling.json")).unwrap();
+        let large = vec![b' '; MAX_FILE_BYTES as usize + 1];
+        std::fs::write(root.path().join("large.json"), large).unwrap();
+        symlink(root.path().join("large.json"), dir.join("large.json")).unwrap();
+
+        assert_eq!(
+            read_theme::<Colors>(&dir, "pywal.json").unwrap().palette,
+            Colors::base(Base::Dark)
+        );
+        for filename in ["folder.json", "dangling.json", "large.json"] {
+            assert!(read_theme::<Colors>(&dir, filename).is_err(), "{filename}");
         }
+        let listed: Vec<String> = discover::<Colors>(&dir, None)
+            .themes
+            .into_iter()
+            .map(|theme| theme.filename)
+            .collect();
+        assert_eq!(listed, ["pywal.json"]);
+        assert!(
+            discover::<Colors>(&dir, Some("pywal.json"))
+                .themes
+                .iter()
+                .any(|theme| theme.filename == "pywal.json")
+        );
     }
 
     #[test]

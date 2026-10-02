@@ -52,6 +52,10 @@ colours it overrides, as `#RRGGBB` or `#RRGGBBAA`:
 `warning`, `overlay`, `shadow`); an app may accept more. Unknown names and
 fields make a file invalid, so a typo is reported rather than ignored.
 
+A file in the themes folder may also be a link to a palette kept elsewhere,
+such as one pywal, wallust or matugen writes on every wallpaper change. The
+file it leads to is checked like any other: a regular file of at most 64 KiB.
+
 `parse_palette::<P>(text)` reads one; `CustomTheme<P>` pairs it with its
 filename and serializes as `{ "filename": .., "palette": .. }`;
 `read_cached_theme` reads a cached one from settings, treating a damaged

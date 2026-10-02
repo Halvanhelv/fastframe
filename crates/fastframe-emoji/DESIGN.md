@@ -203,10 +203,19 @@ pairs with nothing. A cluster is coloured only when its first glyph
 carries its first character; any other mismatch leaves the whole galley
 as egui drew it.
 
-The monochrome fallback face does not join every sequence (Noto Emoji
-draws a family as its three people). The cluster's rectangle is the union
-of its glyphs on that row, and the picture is fitted into it, so a family
-becomes one picture centred where the three stood.
+The cluster's rectangle is the union of its glyphs on that row, and the
+picture is fitted into it. The monochrome fallback face does not join every
+sequence (Noto Emoji draws a family as its people, a keycap as its digit),
+so with stock egui that rectangle is several emoji wide, or a digit wide,
+and the pictures differ in size. Added 2026-10-02: the apps' egui fork
+lays every emoji grapheme cluster out as one glyph carrying a single
+emoji's advance (the advance of U+1F600 in the font), with zero-width
+continuation glyphs for the rest of the cluster, drawing the first glyph
+the font made of it, centred. Every cluster's rectangle is then one emoji
+wide, so the pictures match, and cursors, selection, wrapping and widget
+sizes agree with what is painted. Repositioning glyphs inside the plugin
+was tried first and dropped: egui's widgets measure, hit-test and place
+the cursor from their own galley, which the plugin cannot change.
 
 ### Hiding the monochrome glyphs
 

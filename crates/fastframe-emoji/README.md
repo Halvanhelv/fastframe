@@ -42,10 +42,14 @@ on its way leaves the monochrome glyph for that frame. Text drawn outside
 egui's text shapes (an app's own renderer) is out of its reach; see
 `Emoji::render`.
 
-Because the layout is egui's, a sequence the monochrome font does not join
-keeps the width of its parts: a family laid out as three people becomes one
-picture centred in a three-emoji gap. Lay out text where that matters with
-`append`, which gives every emoji one placeholder's width.
+The picture fills the space egui laid the emoji out in. The apps' egui
+fork (crmne/egui `apps-0.36`) lays every emoji cluster out one emoji wide,
+however the monochrome font draws it, so a family, a keycap and a 😀 are the
+same size and cursors, selection and widget sizes agree with the pictures.
+Stock egui 0.36 lays a sequence the monochrome font does not join out as
+its parts (a family as three people, a keycap as its digit), and the
+picture fills that wider or narrower space. Lay out text where that matters
+with `append`, which gives every emoji one placeholder's width.
 
 ### Selectable placeholders
 

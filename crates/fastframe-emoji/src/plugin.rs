@@ -786,4 +786,60 @@ mod tests {
         let (first, second) = (first.expect("first"), second.expect("second"));
         assert!(Arc::ptr_eq(&first, &second), "the same hidden galley");
     }
+
+    /// The label for `text` and its picture, both relative to the label.
+    fn label_and_picture(ctx: &egui::Context, text: &str) -> (Arc<Galley>, Rect) {
+        let shapes = frame(ctx, |ui| {
+            ui.label(text);
+        });
+        let label = texts(&shapes)
+            .into_iter()
+            .find(|shape| shape.galley.job.text == text)
+            .expect("the label");
+        let pictures = pictures(&shapes);
+        assert_eq!(pictures.len(), 1, "{text}");
+        (
+            label.galley.clone(),
+            pictures[0].1.translate(-label.pos.to_vec2()),
+        )
+    }
+
+    #[test]
+    fn a_family_and_a_keycap_are_laid_out_and_painted_as_one_emoji() {
+        let ctx = context();
+        let (single, single_picture) = label_and_picture(&ctx, "a 😀 z");
+        let (family, _) = label_and_picture(&ctx, "a 👨‍👩‍👧 z");
+        if (family.size().x - single.size().x).abs() > 0.01 {
+            // Stock egui lays a sequence out as the glyphs its font draws;
+            // giving each one emoji's width takes the apps' egui fork
+            // (crmne/egui, "Lay out each emoji cluster as one emoji's
+            // width"). Nothing more to check here.
+            return;
+        }
+        let cursor =
+            |galley: &Galley, at: usize| galley.pos_from_cursor(egui::text::CCursor::new(at)).min.x;
+        for (text, length) in [("a 👨‍👩‍👧 z", 5), ("a #️⃣ z", 3), ("a 👍🏽 z", 2)]
+        {
+            let (galley, picture) = label_and_picture(&ctx, text);
+            assert!(
+                (galley.size().x - single.size().x).abs() < 0.01,
+                "{text}: the label is as wide as with a single emoji"
+            );
+            // Before the emoji, after it, and after the space that follows.
+            for (here, there) in [(2, 2), (2 + length, 3), (3 + length, 4)] {
+                assert!(
+                    (cursor(&galley, here) - cursor(&single, there)).abs() < 0.01,
+                    "{text}: the cursor at {here}"
+                );
+            }
+            assert!(
+                (picture.size() - single_picture.size()).length() < 0.01,
+                "{text}: {picture:?}, a single emoji {single_picture:?}"
+            );
+            assert!(
+                (picture.center() - single_picture.center()).length() < 0.01,
+                "{text}: painted where a single emoji is"
+            );
+        }
+    }
 }

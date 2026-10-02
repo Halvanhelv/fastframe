@@ -4,11 +4,12 @@
 //! rasterizer, so emoji sizing can be checked by eye without a window:
 //!
 //! ```sh
-//! cargo run -p fastframe-emoji --example emoji_sizes -- sizes.png
+//! cargo run -p fastframe-emoji --example emoji_sizes -- sizes.png [--monochrome]
 //! ```
 //!
-//! A grey line marks each row's baseline. The emoji should all be one size
-//! in a row, sit on the text the same way, and take one emoji's width.
+//! A grey line marks each row's baseline, as long as egui laid the row out.
+//! The emoji should all be one size in a row, sit on the text the same way,
+//! take one emoji's width, and end the text where the line ends.
 
 use std::collections::HashMap;
 use std::io::Write as _;
@@ -35,7 +36,10 @@ fn main() -> std::io::Result<()> {
     ctx.set_fonts(fastframe_fonts::FontSetup::default().definitions());
     ctx.set_visuals(egui::Visuals::dark());
     ctx.set_zoom_factor(PIXELS_PER_POINT);
-    ctx.add_plugin(fastframe_emoji::EmojiPlugin::default());
+    // `--monochrome` leaves the plugin out, to see egui's own glyphs.
+    if !std::env::args().any(|arg| arg == "--monochrome") {
+        ctx.add_plugin(fastframe_emoji::EmojiPlugin::default());
+    }
 
     let height = 30.0 + SIZES.iter().map(|size| size * 2.2 + 8.0).sum::<f32>();
     let screen = Rect::from_min_size(Pos2::ZERO, vec2(WIDTH, height));

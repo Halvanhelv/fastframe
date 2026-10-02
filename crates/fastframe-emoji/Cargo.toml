@@ -43,6 +43,8 @@ windows-numerics = "0.3"
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }
 tempfile.workspace = true
+# The apps' interface font and fallbacks, for the `emoji_sizes` example.
+fastframe-fonts = { path = "../fastframe-fonts" }
 
 # The workspace lints, except that unsafe code is denied rather than
 # forbidden: memory-mapping font files and asking DirectWrite need it. Each
